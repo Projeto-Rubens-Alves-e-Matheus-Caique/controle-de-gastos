@@ -6,6 +6,38 @@ export default function HomeScreen() {
   const [occupation, setOccupation] = useState('');
   const [income, setIncome] = useState('');
   const [usesStreaming, setUsesStreaming] = useState<'sim' | 'nao' | null>(null);
+  const [selectedStreamingServices, setSelectedStreamingServices] = useState<string[]>([]);
+
+  const streamingServices = [
+    'Assino todos os servicos',
+    'Netflix',
+    'Prime Video',
+    'HBO',
+    'Twitch',
+    'Disney Plus',
+    'Apple TV',
+    'Globo Play',
+    'Paramount',
+  ];
+
+  const toggleStreamingService = (service: string) => {
+    const allServicesOption = 'Assino todos os servicos';
+
+    if (service === allServicesOption) {
+      setSelectedStreamingServices((current) =>
+        current.includes(allServicesOption) ? [] : [allServicesOption],
+      );
+      return;
+    }
+
+    setSelectedStreamingServices((current) => {
+      const withoutAllOption = current.filter((item) => item !== allServicesOption);
+      if (withoutAllOption.includes(service)) {
+        return withoutAllOption.filter((item) => item !== service);
+      }
+      return [...withoutAllOption, service];
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -40,11 +72,43 @@ export default function HomeScreen() {
             <Text style={[styles.choiceText, usesStreaming === 'sim' && styles.choiceTextActive]}>Sim</Text>
           </Pressable>
           <Pressable
-            onPress={() => setUsesStreaming('nao')}
+            onPress={() => {
+              setUsesStreaming('nao');
+              setSelectedStreamingServices([]);
+            }}
             style={[styles.choiceButton, usesStreaming === 'nao' && styles.choiceButtonActive]}>
             <Text style={[styles.choiceText, usesStreaming === 'nao' && styles.choiceTextActive]}>Nao</Text>
           </Pressable>
         </View>
+
+        {usesStreaming === 'sim' && (
+          <View style={styles.streamingCard}>
+            <View style={styles.streamingCardHeader}>
+              <Text style={styles.streamingTitle}>Quais servicos voce assina?</Text>
+              <Text style={styles.streamingCounter}>{selectedStreamingServices.length} selecionado(s)</Text>
+            </View>
+            <Text style={styles.streamingHint}>Toque para selecionar um ou mais servicos.</Text>
+
+            <View style={styles.streamingOptionsContainer}>
+              {streamingServices.map((service) => {
+                const isSelected = selectedStreamingServices.includes(service);
+                return (
+                  <Pressable
+                    key={service}
+                    onPress={() => toggleStreamingService(service)}
+                    style={[styles.streamingOption, isSelected && styles.streamingOptionActive]}>
+                    <Text style={[styles.streamingCheck, isSelected && styles.streamingCheckActive]}>
+                      {isSelected ? '✓' : '+'}
+                    </Text>
+                    <Text style={[styles.streamingOptionText, isSelected && styles.streamingOptionTextActive]}>
+                      {service}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/login')}>
@@ -119,6 +183,76 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   choiceTextActive: {
+    color: '#0B2E23',
+  },
+  streamingOptionsContainer: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  streamingCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E3E9E5',
+    backgroundColor: '#FAFCFB',
+    borderRadius: 14,
+    padding: 12,
+  },
+  streamingCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  streamingTitle: {
+    color: '#123B2F',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  streamingCounter: {
+    color: '#48665B',
+    fontSize: 11,
+    fontWeight: '600',
+    backgroundColor: '#EFF4F1',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  streamingHint: {
+    color: '#628177',
+    fontSize: 11,
+    marginTop: 5,
+  },
+  streamingOption: {
+    borderWidth: 1,
+    borderColor: '#B6C0BB',
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  streamingOptionActive: {
+    borderColor: '#C8AA56',
+    backgroundColor: '#F7EFCF',
+  },
+  streamingCheck: {
+    color: '#7A8D86',
+    width: 14,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  streamingCheckActive: {
+    color: '#0B2E23',
+  },
+  streamingOptionText: {
+    color: '#26453A',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  streamingOptionTextActive: {
     color: '#0B2E23',
   },
   logoutButton: {
