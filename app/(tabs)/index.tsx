@@ -1,12 +1,25 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { parseMoneyInput, useFinance, type StreamingPlanTier } from '@/contexts/finance-context';
+import { Redirect, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
+  const { setOnboarding, onboardingCompleted } = useFinance();
+
+  if (onboardingCompleted) {
+    return <Redirect href="/(tabs)/gastos" />;
+  }
   const [occupation, setOccupation] = useState('');
   const [income, setIncome] = useState('');
   const [usesStreaming, setUsesStreaming] = useState<'sim' | 'nao' | null>(null);
   const [selectedStreamingServices, setSelectedStreamingServices] = useState<string[]>([]);
+  const [streamingPlanTier, setStreamingPlanTier] = useState<StreamingPlanTier | null>(null);
+
+  useEffect(() => {
+    if (selectedStreamingServices.length === 0) {
+      setStreamingPlanTier(null);
+    }
+  }, [selectedStreamingServices.length]);
 
   const streamingServices = [
     'Assino todos os servicos',
@@ -39,8 +52,27 @@ export default function HomeScreen() {
     });
   };
 
+  const canConfirm =
+    usesStreaming !== null &&
+    (usesStreaming === 'nao' ||
+      (usesStreaming === 'sim' &&
+        selectedStreamingServices.length > 0 &&
+        streamingPlanTier !== null));
+
+  const handleConfirm = () => {
+    if (!canConfirm) return;
+    setOnboarding({
+      occupation: occupation.trim(),
+      monthlyIncome: parseMoneyInput(income),
+      usesStreaming: usesStreaming === 'sim',
+      streamingServices: usesStreaming === 'sim' ? selectedStreamingServices : [],
+      streamingPlanTier: usesStreaming === 'sim' ? streamingPlanTier : null,
+    });
+    router.replace('/(tabs)/gastos');
+  };
+
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
       <Text style={styles.title}>Resumo Financeiro</Text>
       <Text style={styles.subtitle}>Responda essas perguntas para personalizar seu controle.</Text>
 
@@ -75,6 +107,7 @@ export default function HomeScreen() {
             onPress={() => {
               setUsesStreaming('nao');
               setSelectedStreamingServices([]);
+              setStreamingPlanTier(null);
             }}
             style={[styles.choiceButton, usesStreaming === 'nao' && styles.choiceButtonActive]}>
             <Text style={[styles.choiceText, usesStreaming === 'nao' && styles.choiceTextActive]}>Nao</Text>
@@ -107,23 +140,64 @@ export default function HomeScreen() {
                 );
               })}
             </View>
+
+            {selectedStreamingServices.length > 0 && (
+              <View style={styles.planCard}>
+                <Text style={styles.planTitle}>Qual plano voce costuma assinar?</Text>
+                <Text style={styles.planHint}>Considerando o preco dos servicos que voce marcou.</Text>
+                <View style={styles.planRow}>
+                  {(
+                    [
+                      { key: 'barato' as const, label: 'Mais barato' },
+                      { key: 'medio' as const, label: 'Medio' },
+                      { key: 'caro' as const, label: 'Mais caro' },
+                    ] as const
+                  ).map(({ key, label }) => {
+                    const isActive = streamingPlanTier === key;
+                    return (
+                      <Pressable
+                        key={key}
+                        onPress={() => setStreamingPlanTier(key)}
+                        style={[styles.planButton, isActive && styles.planButtonActive]}>
+                        <Text style={[styles.planButtonText, isActive && styles.planButtonTextActive]}>{label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
+          onPress={handleConfirm}
+          disabled={!canConfirm}>
+          <Text style={[styles.confirmButtonText, !canConfirm && styles.confirmButtonTextDisabled]}>Confirmar</Text>
+        </TouchableOpacity>
+        {usesStreaming === null && (
+          <Text style={styles.confirmHint}>Responda sobre streaming para habilitar a confirmacao.</Text>
+        )}
+        {usesStreaming === 'sim' && !canConfirm && (
+          <Text style={styles.confirmHint}>Selecione os servicos e o plano para confirmar.</Text>
         )}
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/login')}>
         <Text style={styles.logoutText}>Voltar para LoginScreen</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
     backgroundColor: '#F6F7F3',
+  },
+  scrollContent: {
     padding: 24,
-    justifyContent: 'center',
+    paddingBottom: 32,
   },
   title: {
     color: '#0B2E23',
@@ -254,6 +328,76 @@ const styles = StyleSheet.create({
   },
   streamingOptionTextActive: {
     color: '#0B2E23',
+  },
+  planCard: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#E3E9E5',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 12,
+  },
+  planTitle: {
+    color: '#123B2F',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  planHint: {
+    color: '#628177',
+    fontSize: 11,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  planRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  planButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#B6C0BB',
+    backgroundColor: '#FAFCFB',
+    alignItems: 'center',
+  },
+  planButtonActive: {
+    borderColor: '#C8AA56',
+    backgroundColor: '#F7EFCF',
+  },
+  planButtonText: {
+    color: '#26453A',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  planButtonTextActive: {
+    color: '#0B2E23',
+  },
+  confirmButton: {
+    marginTop: 16,
+    backgroundColor: '#0B2E23',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  confirmButtonDisabled: {
+    backgroundColor: '#B6C0BB',
+    opacity: 0.85,
+  },
+  confirmButtonText: {
+    color: '#F5EBC8',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  confirmButtonTextDisabled: {
+    color: '#F0F4F2',
+  },
+  confirmHint: {
+    marginTop: 8,
+    color: '#628177',
+    fontSize: 11,
+    textAlign: 'center',
   },
   logoutButton: {
     marginTop: 18,

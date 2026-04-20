@@ -1,46 +1,12 @@
-import { router } from 'expo-router';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFinance } from '@/contexts/finance-context';
+import { Redirect } from 'expo-router';
 
-export default function TabTwoScreen() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Categorias</Text>
-      <Text style={styles.subtitle}>Organize receitas e despesas por categoria nesta aba.</Text>
-      <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/login')}>
-        <Text style={styles.logoutText}>Voltar para LoginScreen</Text>
-      </TouchableOpacity>
-    </View>
-  );
+/** Rota legada: nao aparece na barra de abas; redireciona para o fluxo principal. */
+export default function ExploreRedirectScreen() {
+  const { onboardingCompleted } = useFinance();
+
+  if (!onboardingCompleted) {
+    return <Redirect href="/(tabs)" />;
+  }
+  return <Redirect href="/(tabs)/gastos" />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F7F3',
-    padding: 24,
-    justifyContent: 'center',
-  },
-  title: {
-    color: '#0B2E23',
-    fontWeight: '700',
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: '#40534D',
-    fontSize: 15,
-  },
-  logoutButton: {
-    marginTop: 18,
-    backgroundColor: '#0B2E23',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    alignSelf: 'flex-start',
-  },
-  logoutText: {
-    color: '#F5EBC8',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-});
