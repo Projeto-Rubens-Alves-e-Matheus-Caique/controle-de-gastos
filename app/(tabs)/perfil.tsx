@@ -1,33 +1,62 @@
 import { parseMoneyInput, useFinance } from '@/contexts/finance-context';
+import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-const avatarOptions = [
-  'https://i.pravatar.cc/220?img=12',
-  'https://i.pravatar.cc/220?img=32',
-  'https://i.pravatar.cc/220?img=48',
-  'https://i.pravatar.cc/220?img=54',
-];
+const DEFAULT_AVATAR = 'https://i.pravatar.cc/220?img=12';
+
+/** Na web o expo-image-picker usa dispatchEvent no input; navegadores exigem input.click() no gesto do usuario. */
+function pickImageFromWebFileInput(onPicked: (uri: string) => void) {
+  if (typeof document === 'undefined') return;
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+
+  const cleanup = () => {
+    input.removeEventListener('change', onChange);
+    if (input.parentNode) input.parentNode.removeChild(input);
+  };
+
+  const onChange = () => {
+    const file = input.files?.[0];
+    if (file) {
+      onPicked(URL.createObjectURL(file));
+    }
+    cleanup();
+  };
+
+  input.addEventListener('change', onChange);
+  document.body.appendChild(input);
+  input.click();
+}
 
 export default function PerfilScreen() {
   const {
     onboardingCompleted,
+    profileAvatarUri,
+    setProfileAvatarUri,
     occupation: ctxOccupation,
     monthlyIncome,
     setOccupation: setCtxOccupation,
     setMonthlyIncome,
   } = useFinance();
 
-  if (!onboardingCompleted) {
-    return <Redirect href="/(tabs)" />;
-  }
   const [name] = useState('Usuario');
   const [occupation, setOccupation] = useState(ctxOccupation || 'Designer');
   const [salary, setSalary] = useState(monthlyIncome > 0 ? String(monthlyIncome) : '3500');
-  const [avatarIndex, setAvatarIndex] = useState(0);
-
-  const avatarUri = useMemo(() => avatarOptions[avatarIndex], [avatarIndex]);
 
   useEffect(() => {
     if (ctxOccupation.trim()) setOccupation(ctxOccupation);
@@ -37,9 +66,47 @@ export default function PerfilScreen() {
     if (monthlyIncome > 0) setSalary(String(monthlyIncome));
   }, [monthlyIncome]);
 
-  const handleChangePhoto = () => {
-    setAvatarIndex((current) => (current + 1) % avatarOptions.length);
-  };
+  const pickFromGallery = useCallback(() => {
+    if (Platform.OS === 'web') {
+      pickImageFromWebFileInput((uri) => setProfileAvatarUri(uri));
+      return;
+    }
+
+    void (async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissao negada', 'Precisamos de acesso a galeria para escolher a foto.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.88,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setProfileAvatarUri(result.assets[0].uri);
+      }
+    })();
+  }, [setProfileAvatarUri]);
+
+  const takePhoto = useCallback(() => {
+    void (async () => {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permissao negada', 'Precisamos de acesso a camera para tirar a foto.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.88,
+      });
+      if (!result.canceled && result.assets[0]?.uri) {
+        setProfileAvatarUri(result.assets[0].uri);
+      }
+    })();
+  }, [setProfileAvatarUri]);
 
   const handleSave = () => {
     setCtxOccupation(occupation.trim());
@@ -47,17 +114,31 @@ export default function PerfilScreen() {
     Alert.alert('Salvo', 'Profissao e salario atualizados.');
   };
 
+  if (!onboardingCompleted) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  const displayUri = profileAvatarUri ?? DEFAULT_AVATAR;
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Perfil</Text>
       <Text style={styles.subtitle}>Atualize seus dados pessoais e financeiros.</Text>
 
       <View style={styles.card}>
-        <Image source={{ uri: avatarUri }} style={styles.avatar} />
+        <Image source={{ uri: displayUri }} style={styles.avatar} />
         <Text style={styles.name}>{name}</Text>
-        <Pressable onPress={handleChangePhoto} style={styles.photoButton}>
-          <Text style={styles.photoButtonText}>Alterar foto</Text>
-        </Pressable>
+
+        <View style={styles.photoRow}>
+          <Pressable onPress={pickFromGallery} style={styles.photoButton}>
+            <Text style={styles.photoButtonText}>Mudar foto</Text>
+          </Pressable>
+          {Platform.OS !== 'web' && (
+            <Pressable onPress={takePhoto} style={styles.photoButtonSecondary}>
+              <Text style={styles.photoButtonSecondaryText}>Camera</Text>
+            </Pressable>
+          )}
+        </View>
 
         <Text style={styles.label}>Profissao</Text>
         <TextInput
@@ -129,18 +210,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
-  photoButton: {
+  photoRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
     marginTop: 8,
     marginBottom: 14,
+  },
+  photoButton: {
     backgroundColor: '#F7EFCF',
     borderWidth: 1,
     borderColor: '#C8AA56',
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   photoButtonText: {
     color: '#0B2E23',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  photoButtonSecondary: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#B6C0BB',
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  photoButtonSecondaryText: {
+    color: '#26453A',
     fontSize: 12,
     fontWeight: '700',
   },

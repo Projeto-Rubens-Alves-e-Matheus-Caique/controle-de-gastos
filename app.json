@@ -28,6 +28,13 @@
     "plugins": [
       "expo-router",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permitir acesso as fotos para escolher a imagem do perfil.",
+          "cameraPermission": "Permitir uso da camera para tirar a foto do perfil."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/app-logo.png",

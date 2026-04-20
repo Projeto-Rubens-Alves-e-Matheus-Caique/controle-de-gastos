@@ -74,6 +74,9 @@ type OnboardingPayload = {
 
 type FinanceContextValue = {
   onboardingCompleted: boolean;
+  /** URI da foto de perfil (galeria/camera); usada tambem no icone da aba. */
+  profileAvatarUri: string | null;
+  setProfileAvatarUri: (uri: string | null) => void;
   occupation: string;
   monthlyIncome: number;
   usesStreaming: boolean;
@@ -106,6 +109,7 @@ const FinanceContext = createContext<FinanceContextValue | null>(null);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
+  const [profileAvatarUri, setProfileAvatarUri] = useState<string | null>(null);
   const [occupation, setOccupation] = useState('');
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [usesStreaming, setUsesStreaming] = useState(false);
@@ -198,6 +202,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const value: FinanceContextValue = {
     onboardingCompleted,
+    profileAvatarUri,
+    setProfileAvatarUri,
     occupation,
     monthlyIncome,
     usesStreaming,

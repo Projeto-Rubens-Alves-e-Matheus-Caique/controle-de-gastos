@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
+import { Image, StyleSheet } from 'react-native';
 
 import { FinanceProvider, useFinance } from '@/contexts/finance-context';
 import { HapticTab } from '@/components/haptic-tab';
@@ -9,7 +10,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function TabsLayoutInner() {
   const colorScheme = useColorScheme();
-  const { onboardingCompleted } = useFinance();
+  const { onboardingCompleted, profileAvatarUri } = useFinance();
 
   return (
     <Tabs
@@ -55,7 +56,21 @@ function TabsLayoutInner() {
         options={{
           title: 'Perfil',
           href: !onboardingCompleted ? null : undefined,
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
+          tabBarIcon: ({ color, focused }) =>
+            profileAvatarUri ? (
+              <Image
+                source={{ uri: profileAvatarUri }}
+                style={[
+                  tabStyles.tabAvatar,
+                  {
+                    borderColor: focused ? color : '#C8D2CC',
+                    borderWidth: focused ? 2 : 1,
+                  },
+                ]}
+              />
+            ) : (
+              <IconSymbol size={28} name="person.fill" color={color} />
+            ),
         }}
       />
     </Tabs>
@@ -69,3 +84,11 @@ export default function TabLayout() {
     </FinanceProvider>
   );
 }
+
+const tabStyles = StyleSheet.create({
+  tabAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+  },
+});
