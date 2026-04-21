@@ -1,7 +1,47 @@
 import { router } from 'expo-router';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { register } from '@/services/authService';
 
 export default function CreateAccountScreen() {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async () => {
+    if (!name || !email || !password){
+      alert('Preencha todos os campos');
+      return;
+    }
+    try {
+      setLoading(true);
+
+      await register(email, password);
+
+      alert('Conta criada com sucesso!');
+
+      router.replace('/(tabs)');
+    } catch (error : any) {
+      console.log(error);
+
+      if (error.code === 'auth/email-already-in-use') {
+        alert('Este email já está em uso. Tente outro.');
+
+      } else if (error.code === 'auth/invalid-email') {
+        alert('Email inválido. Verifique o formato e tente novamente.');
+
+      } else if (error.code === 'auth/weak-password') {
+        alert('A senha é muito fraca. Use pelo menos 6 caracteres.');
+
+      } else {
+        alert('Erro ao criar conta. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Criar conta</Text>
@@ -9,7 +49,13 @@ export default function CreateAccountScreen() {
 
       <View style={styles.form}>
         <Text style={styles.label}>Nome</Text>
-        <TextInput placeholder="Seu nome completo" placeholderTextColor="#6E7B75" style={styles.input} />
+        <TextInput 
+        placeholder="Seu nome completo" 
+        placeholderTextColor="#6E7B75" 
+        style={styles.input} 
+        value={name}
+        onChangeText={setName}
+        />
 
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -18,6 +64,8 @@ export default function CreateAccountScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           style={styles.input}
+          value={email}
+          onChangeText={setEmail}
         />
 
         <Text style={styles.label}>Senha</Text>
@@ -26,10 +74,14 @@ export default function CreateAccountScreen() {
           placeholderTextColor="#6E7B75"
           secureTextEntry
           style={styles.input}
+          value={password}
+          onChangeText={setPassword}
         />
 
-        <TouchableOpacity style={styles.button} onPress={() => router.back()}>
-          <Text style={styles.buttonText}>Salvar e voltar</Text>
+        <TouchableOpacity style={styles.button} onPress={handleRegister}>
+          <Text style={styles.buttonText}>
+            {loading ? 'Criando...' : 'Criar conta'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

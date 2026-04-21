@@ -1,8 +1,9 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Slot, Redirect } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet } from 'react-native';
 
 import { FinanceProvider, useFinance } from '@/contexts/finance-context';
+import { useAuth } from '@/contexts/auth-context';
 import { HapticTab } from '@/components/haptic-tab';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
@@ -78,6 +79,14 @@ function TabsLayoutInner() {
 }
 
 export default function TabLayout() {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!user) {
+    return <Redirect href="/login" />;
+  }
+
   return (
     <FinanceProvider>
       <TabsLayoutInner />
