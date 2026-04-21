@@ -1,11 +1,12 @@
-import { useFinance } from '@/contexts/finance-context';
+import { Period, useFinance } from '@/contexts/finance-context';
 import { Redirect } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 export default function GraficosScreen() {
+
   const {
     onboardingCompleted,
     monthlyIncome,
@@ -15,7 +16,23 @@ export default function GraficosScreen() {
     monthlyBars,
     streamingEstimatedMonthly,
     usesStreaming,
+    period,
+    setPeriod,
   } = useFinance();
+
+  const periodLabelMap = {
+    '7d': 'Últimos 7 dias',
+    '30d': 'Últimos 30 dias',
+    '180d': 'Últimos 6 meses',
+    '365d': 'Último ano',
+  }
+
+  const filters: { label: string; value: Period }[] = [
+    { label: '7D', value: '7d' },
+    { label: '30D', value: '30d' },
+    { label: '6M', value: '180d' },
+    { label: '1A', value: '365d' },
+  ];
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;
@@ -80,8 +97,30 @@ export default function GraficosScreen() {
         )}
       </View>
 
+      <View style={styles.filters}>
+        {filters.map((item) =>(
+          <TouchableOpacity
+            key={item.value}
+            onPress={() => setPeriod(item.value)}
+            style={[
+              styles.filterButton,
+              period === item.value && styles.filterActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                period === item.value && styles.filterTextActive,
+              ]}
+            >
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Evolucao mensal (ultimos 6 meses)</Text>
+        <Text style={styles.cardTitle}>Evolução ({periodLabelMap[period]})</Text>
         <View style={styles.monthlyChart}>
           {monthlyBars.map((item) => {
             const heightPercent = maxMonthlyValue > 0 ? (item.total / maxMonthlyValue) * 100 : 0;
@@ -251,5 +290,26 @@ const styles = StyleSheet.create({
     color: '#29493E',
     fontSize: 10,
     fontWeight: '600',
+  },
+  filters: {
+  flexDirection: 'row',
+  gap: 8,
+  marginBottom: 10,
+  },
+  filterButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#EEF3F0',
+  },
+  filterActive: {
+    backgroundColor: '#0B2E23',
+  },
+  filterText: {
+    color: '#284A3E',
+    fontWeight: '600',
+  },
+  filterTextActive: {
+    color: '#FFF',
   },
 });

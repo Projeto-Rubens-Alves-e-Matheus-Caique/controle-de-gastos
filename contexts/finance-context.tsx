@@ -1,4 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { trintaDias } from '@/services/gastosServices';
+import { adicionarGasto } from '@/services/gastosServices';
+import { serverTimestamp, Timestamp } from 'firebase/firestore';
 
 export type StreamingPlanTier = 'barato' | 'medio' | 'caro';
 
@@ -7,7 +10,23 @@ export type Expense = {
   amount: number;
   category: string;
   description: string;
-  createdAt: number;
+  createdAt: number | Timestamp;
+};
+
+function getDate(value: number | any): Date {
+  if (value?.toDate) {
+    return value.toDate(); // Firebase Timestamp
+  }
+  return new Date(value); // number
+}
+
+export type Period = '7d' | '30d' | '180d' | '365d';
+
+const PERIOD_DAYS: Record<Period, number> = {
+  '7d': 7,
+  '30d': 30,
+  '180d': 180,
+  '365d': 365,
 };
 
 const STREAMING_CATEGORY = 'Streaming';
@@ -92,6 +111,8 @@ type FinanceContextValue = {
   totalSpent: number;
   freeToSpend: number;
   monthlyBars: { key: string; label: string; total: number }[];
+  period: Period;
+  setPeriod: (p: Period) => void;
 };
 
 const CATEGORY_COLORS = [
@@ -116,6 +137,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [streamingServices, setStreamingServices] = useState<string[]>([]);
   const [streamingPlanTier, setStreamingPlanTier] = useState<StreamingPlanTier | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [period, setPeriod] = useState<Period>('30d');
+
+  useEffect(() => {
+    const carregar = async () => {
+      const dados = await trintaDias();
+      setExpenses(dados as Expense[]);
+    };
+
+    carregar();
+  }, []);
 
   const streamingEstimatedMonthly = useMemo(
     () => (usesStreaming ? estimateStreamingMonthly(streamingServices, streamingPlanTier) : 0),
@@ -131,20 +162,50 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setOnboardingCompleted(true);
   }, []);
 
-  const addExpense = useCallback((input: { amount: number; category: string; description: string }) => {
+  const addExpense = useCallback(async (input: { amount: number; category: string; description: string }) => {
     if (input.amount <= 0) return;
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    setExpenses((prev) => [
-      ...prev,
-      {
-        id,
-        amount: Math.round(input.amount * 100) / 100,
-        category: normalizeCategory(input.category),
-        description: input.description.trim(),
-        createdAt: Date.now(),
-      },
-    ]);
+
+    const newExpense = {
+      amount: Math.round(input.amount * 100) / 100,
+      category: normalizeCategory(input.category),
+      description: input.description.trim(),
+      createdAt: Date.now(), // UI imediata
+    };
+
+    try {
+      // salva no Firebase
+      await adicionarGasto({
+        amount: newExpense.amount,
+        category: newExpense.category,
+        description: newExpense.description,
+      });
+
+      // atualiza local (sem esperar reload)
+      setExpenses((prev) => [
+        ...prev,
+        {
+          ...newExpense,
+          id: `${Date.now()}`, // id temporário
+          createdAt: Date.now(),
+        },
+      ]);
+    } catch (error) {
+      console.error('Erro ao salvar gasto:', error);
+    }
   }, []);
+
+  const filteredExpenses = useMemo(() => {
+    const now = new Date();
+    const days = PERIOD_DAYS[period];
+
+    return expenses.filter((e) => {
+      const date = getDate(e.createdAt);
+
+      const diff = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+
+      return diff <= days;
+    });
+  }, [expenses, period]);
 
   const { categoryBreakdown, totalSpent, freeToSpend, monthlyBars } = useMemo(() => {
     const map = new Map<string, number>();
@@ -153,7 +214,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       map.set(STREAMING_CATEGORY, streamingEstimatedMonthly);
     }
 
-    for (const e of expenses) {
+    for (const e of filteredExpenses) {
       const key = e.category;
       map.set(key, (map.get(key) ?? 0) + e.amount);
     }
@@ -170,27 +231,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const now = new Date();
     const bars: { key: string; label: string; total: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthLabel = d.toLocaleDateString('pt-BR', { month: 'short' });
-      let monthTotal = 0;
-      for (const e of expenses) {
-        const ed = new Date(e.createdAt);
-        if (ed.getFullYear() === d.getFullYear() && ed.getMonth() === d.getMonth()) {
-          monthTotal += e.amount;
-        }
+
+    const groupedMap = new Map<string, { total: number; label: string }>();
+
+    for (const e of filteredExpenses) {
+      const date = getDate(e.createdAt);
+
+      let key = '';
+      let label = '';
+
+      if (period === '180d' || period === '365d') {
+        key = `${date.getFullYear()}-${date.getMonth()}`;
+        label = date.toLocaleDateString('pt-BR', { month: 'short' });
+      } else {
+        key = date.toISOString().slice(0, 10);
+        label = date.getDate().toString();
       }
-      const isCurrentMonth = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      if (isCurrentMonth && streamingEstimatedMonthly > 0) {
-        monthTotal += streamingEstimatedMonthly;
-      }
-      bars.push({
-        key,
-        label: monthLabel.replace('.', ''),
-        total: Math.round(monthTotal * 100) / 100,
+      
+      const current = groupedMap.get(key);
+
+      groupedMap.set(key, {
+        total: (current?.total ?? 0) + e.amount,
+        label,
       });
     }
+
+    for (const [key, value] of groupedMap.entries()) {
+      bars.push({
+        key,
+        label: value.label,
+        total: Math.round(value.total * 100) / 100,
+      });
+    }
+
+    bars.sort((a, b) => a.key.localeCompare(b.key));
 
     return {
       categoryBreakdown: breakdown,
@@ -198,7 +272,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       freeToSpend: free,
       monthlyBars: bars,
     };
-  }, [expenses, monthlyIncome, streamingEstimatedMonthly]);
+  }, [filteredExpenses, monthlyIncome, streamingEstimatedMonthly, period]);
 
   const value: FinanceContextValue = {
     onboardingCompleted,
@@ -219,8 +293,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     totalSpent,
     freeToSpend,
     monthlyBars,
+    period,
+    setPeriod,
   };
-
+  
+  console.log('EXPENSES:', expenses);
+  console.log('FILTERED EXPENSES:', filteredExpenses);
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
 }
 
@@ -231,3 +309,4 @@ export function useFinance() {
   }
   return ctx;
 }
+

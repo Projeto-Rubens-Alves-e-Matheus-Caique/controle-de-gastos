@@ -2,6 +2,8 @@ import { parseMoneyInput, useFinance } from '@/contexts/finance-context';
 import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { adicionarGasto } from '@/services/gastosServices'
+import { serverTimestamp } from 'firebase/firestore';
 
 export default function GastosScreen() {
   const { addExpense, onboardingCompleted } = useFinance();
@@ -13,17 +15,26 @@ export default function GastosScreen() {
   const [amountRaw, setAmountRaw] = useState('');
   const [category, setCategory] = useState('');
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const amount = parseMoneyInput(amountRaw);
+
     if (amount <= 0) {
       Alert.alert('Valor invalido', 'Informe um valor maior que zero.');
       return;
     }
+
     const cat = category.trim() || 'Outros';
-    addExpense({ amount, category: cat, description: description.trim() || cat });
+    
+    addExpense({
+      amount,
+      category: cat,
+      description: description.trim() || cat,
+    });
+
     setDescription('');
     setAmountRaw('');
     setCategory('');
+
     Alert.alert('Gasto salvo', 'O valor foi incluido nos seus graficos.');
   };
 
