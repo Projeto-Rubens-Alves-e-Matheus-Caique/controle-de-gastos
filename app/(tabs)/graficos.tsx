@@ -57,16 +57,26 @@ export default function GraficosScreen() {
       ? Math.max(...monthlyBars.map((m) => m.total)) * 1.3
       : 1;
 
-  // 🎯 animações
-  const animatedValues = useRef(monthlyBars.map(() => new Animated.Value(0))).current;
+  // ✅ refs seguros (evita erro quando muda tamanho)
+  const animatedValues = useRef<Animated.Value[]>([]);
+  const animatedCategoryValues = useRef<Animated.Value[]>([]);
 
-  const animatedCategoryValues = useRef(
-    categoryBreakdown.map(() => new Animated.Value(0))
-  ).current;
+  // 🔥 recria valores quando mudar tamanho
+  useEffect(() => {
+    animatedValues.current = monthlyBars.map(() => new Animated.Value(0));
+    animateBars('up');
+  }, [monthlyBars]);
+
+  useEffect(() => {
+    animatedCategoryValues.current = categoryBreakdown.map(
+      () => new Animated.Value(0)
+    );
+    animateCategories('in');
+  }, [categoryBreakdown]);
 
   // 🔥 anima barras verticais
   const animateBars = (direction: 'up' | 'down', callback?: () => void) => {
-    const animations = animatedValues.map((anim, index) => {
+    const animations = animatedValues.current.map((anim, index) => {
       let toValue = 0;
 
       if (direction === 'up') {
@@ -85,14 +95,12 @@ export default function GraficosScreen() {
       });
     });
 
-    Animated.stagger(80, animations).start(() => {
-      if (callback) callback();
-    });
+    Animated.stagger(80, animations).start(() => callback?.());
   };
 
   // 🔥 anima categorias
   const animateCategories = (direction: 'in' | 'out', callback?: () => void) => {
-    const animations = animatedCategoryValues.map((anim, index) => {
+    const animations = animatedCategoryValues.current.map((anim, index) => {
       let toValue = 0;
 
       if (direction === 'in') {
@@ -111,19 +119,8 @@ export default function GraficosScreen() {
       });
     });
 
-    Animated.stagger(60, animations).start(() => {
-      if (callback) callback();
-    });
+    Animated.stagger(60, animations).start(() => callback?.());
   };
-
-  // 🚀 efeitos
-  useEffect(() => {
-    animateBars('up');
-  }, [monthlyBars]);
-
-  useEffect(() => {
-    animateCategories('in');
-  }, [categoryBreakdown]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -158,31 +155,37 @@ export default function GraficosScreen() {
             <Text style={styles.totalValue}>{formatCurrency(totalSpent)}</Text>
 
             <View style={styles.categoryList}>
-              {categoryBreakdown.map((item, index) => (
-                <View key={item.name} style={styles.categoryRow}>
-                  <View style={styles.categoryTopLine}>
-                    <Text style={styles.categoryName}>{item.name}</Text>
-                    <Text style={styles.categoryValue}>
-                      {formatCurrency(item.value)}
-                    </Text>
-                  </View>
+              {categoryBreakdown.map((item, index) => {
+                const anim = animatedCategoryValues.current[index];
 
-                  <View style={styles.track}>
-                    <Animated.View
-                      style={[
-                        styles.fill,
-                        {
-                          width: animatedCategoryValues[index].interpolate({
-                            inputRange: [0, 100],
-                            outputRange: ['0%', '100%'],
-                          }),
-                          backgroundColor: item.color,
-                        },
-                      ]}
-                    />
+                return (
+                  <View key={item.name} style={styles.categoryRow}>
+                    <View style={styles.categoryTopLine}>
+                      <Text style={styles.categoryName}>{item.name}</Text>
+                      <Text style={styles.categoryValue}>
+                        {formatCurrency(item.value)}
+                      </Text>
+                    </View>
+
+                    <View style={styles.track}>
+                      {anim && (
+                        <Animated.View
+                          style={[
+                            styles.fill,
+                            {
+                              width: anim.interpolate({
+                                inputRange: [0, 100],
+                                outputRange: ['0%', '100%'],
+                              }),
+                              backgroundColor: item.color,
+                            },
+                          ]}
+                        />
+                      )}
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </>
         )}
@@ -204,12 +207,7 @@ export default function GraficosScreen() {
               period === item.value && styles.filterActive,
             ]}
           >
-            <Text
-              style={[
-                styles.filterText,
-                period === item.value && styles.filterTextActive,
-              ]}
-            >
+            <Text style={[period === item.value && styles.filterTextActive]}>
               {item.label}
             </Text>
           </TouchableOpacity>
@@ -223,29 +221,35 @@ export default function GraficosScreen() {
         </Text>
 
         <View style={styles.monthlyChart}>
-          {monthlyBars.map((item, index) => (
-            <View key={item.key} style={styles.barColumn}>
-              <Text style={styles.barValue}>
-                {item.total > 0 ? formatCurrency(item.total) : '—'}
-              </Text>
+          {monthlyBars.map((item, index) => {
+            const anim = animatedValues.current[index];
 
-              <View style={styles.barTrack}>
-                <Animated.View
-                  style={[
-                    styles.barFill,
-                    {
-                      height: animatedValues[index].interpolate({
-                        inputRange: [0, 100],
-                        outputRange: ['0%', '100%'],
-                      }),
-                    },
-                  ]}
-                />
+            return (
+              <View key={item.key} style={styles.barColumn}>
+                <Text style={styles.barValue}>
+                  {item.total > 0 ? formatCurrency(item.total) : '—'}
+                </Text>
+
+                <View style={styles.barTrack}>
+                  {anim && (
+                    <Animated.View
+                      style={[
+                        styles.barFill,
+                        {
+                          height: anim.interpolate({
+                            inputRange: [0, 100],
+                            outputRange: ['0%', '100%'],
+                          }),
+                        },
+                      ]}
+                    />
+                  )}
+                </View>
+
+                <Text style={styles.barLabel}>{item.label}</Text>
               </View>
-
-              <Text style={styles.barLabel}>{item.label}</Text>
-            </View>
-          ))}
+            );
+          })}
         </View>
       </View>
     </ScrollView>
@@ -253,47 +257,20 @@ export default function GraficosScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 20,
-    backgroundColor: '#F6F7F3',
-    gap: 14,
-    paddingBottom: 32,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  subtitle: {
-    fontSize: 14,
-  },
-  card: {
-    backgroundColor: '#FFF',
-    borderRadius: 18,
-    padding: 16,
-  },
+  container: { padding: 20, backgroundColor: '#F6F7F3', gap: 14 },
+  title: { fontSize: 28, fontWeight: '700' },
+  subtitle: { fontSize: 14 },
+  card: { backgroundColor: '#FFF', borderRadius: 18, padding: 16 },
   highlightCard: {},
-  cardTitle: {
-    fontWeight: '700',
-  },
-  freeValue: {
-    fontSize: 28,
-    fontWeight: '700',
-  },
+  cardTitle: { fontWeight: '700' },
+  freeValue: { fontSize: 28, fontWeight: '700' },
   metaLine: {},
   streamingNote: {},
   emptyText: {},
-  totalValue: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  categoryList: {
-    gap: 10,
-  },
+  totalValue: { fontSize: 24, fontWeight: '700' },
+  categoryList: { gap: 10 },
   categoryRow: {},
-  categoryTopLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
+  categoryTopLine: { flexDirection: 'row', justifyContent: 'space-between' },
   categoryName: {},
   categoryValue: {},
   track: {
@@ -302,20 +279,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
-  fill: {
-    height: '100%',
-    borderRadius: 999,
-  },
+  fill: { height: '100%', borderRadius: 999 },
   monthlyChart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 6,
     marginTop: 14,
   },
-  barColumn: {
-    flex: 1,
-    alignItems: 'center',
-  },
+  barColumn: { flex: 1, alignItems: 'center' },
   barTrack: {
     width: '100%',
     maxWidth: 40,
@@ -330,25 +301,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B2E23',
     borderRadius: 10,
   },
-  barValue: {
-    fontSize: 10,
-  },
-  barLabel: {
-    fontSize: 10,
-  },
-  filters: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  filterButton: {
-    padding: 8,
-    backgroundColor: '#EEF3F0',
-    borderRadius: 8,
-  },
-  filterActive: {
-    backgroundColor: '#0B2E23',
-  },
-  filterTextActive: {
-    color: '#fff',
-  },
+  barValue: { fontSize: 10 },
+  barLabel: { fontSize: 10 },
+  filters: { flexDirection: 'row', gap: 8 },
+  filterButton: { padding: 8, backgroundColor: '#EEF3F0', borderRadius: 8 },
+  filterActive: { backgroundColor: '#0B2E23' },
+  filterTextActive: { color: '#fff' },
 });
