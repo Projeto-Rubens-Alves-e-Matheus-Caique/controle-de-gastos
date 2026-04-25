@@ -28,6 +28,10 @@ export default function GraficosScreen() {
     setPeriod,
   } = useFinance();
 
+  const freeToSpendRatio = monthlyIncome > 0 ? freeToSpend / monthlyIncome : 0;
+  const freeToSpendColor =
+    freeToSpendRatio <= 0.1 ? '#C62828' : freeToSpendRatio <= 0.3 ? '#B28704' : '#0B2E23';
+
   const periodLabelMap: Record<Period, string> = {
     '7d': 'Ultimos 7 dias',
     '30d': 'Ultimos 30 dias',
@@ -141,7 +145,7 @@ export default function GraficosScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
       <Text style={styles.title}>Graficos de Gastos</Text>
       <Text style={styles.subtitle}>
         Veja onde vai o dinheiro e quanto sobra do seu salario.
@@ -149,7 +153,10 @@ export default function GraficosScreen() {
 
       <View style={[styles.card, styles.highlightCard]}>
         <Text style={styles.cardTitle}>Saldo livre para gastar</Text>
-        <Text style={styles.freeValue}>{formatCurrency(freeToSpend)}</Text>
+        {freeToSpend < 0 && (
+          <Text style={styles.negativeAlert}>Voce nao possui saldo para gastar!!!</Text>
+        )}
+        <Text style={[styles.freeValue, { color: freeToSpendColor }]}>{formatCurrency(freeToSpend)}</Text>
         <Text style={styles.metaLine}>
           Salario: {formatCurrency(monthlyIncome)} · Gasto total: {formatCurrency(totalSpent)}
         </Text>
@@ -271,12 +278,14 @@ export default function GraficosScreen() {
 }
 
 const styles = StyleSheet.create({
+  scroll: { flex: 1, backgroundColor: '#F6F7F3' },
   container: { padding: 20, backgroundColor: '#F6F7F3', gap: 14 },
   title: { fontSize: 28, fontWeight: '700' },
   subtitle: { fontSize: 14 },
   card: { backgroundColor: '#FFF', borderRadius: 18, padding: 16 },
   highlightCard: {},
   cardTitle: { fontWeight: '700' },
+  negativeAlert: { color: '#C62828', fontSize: 12, fontWeight: '700', marginTop: 6 },
   freeValue: { fontSize: 28, fontWeight: '700' },
   metaLine: {},
   streamingNote: {},

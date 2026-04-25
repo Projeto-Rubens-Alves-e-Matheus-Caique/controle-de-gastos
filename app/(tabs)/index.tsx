@@ -2,6 +2,7 @@ import { parseMoneyInput, useFinance, type StreamingPlanTier } from '@/contexts/
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { logout } from '@/services/authService';
 
 export default function HomeScreen() {
   const { setOnboarding, onboardingCompleted } = useFinance();
@@ -71,6 +72,11 @@ export default function HomeScreen() {
     router.replace('/(tabs)/gastos');
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.scrollContent} style={styles.scroll}>
       <Text style={styles.title}>Resumo Financeiro</Text>
@@ -116,29 +122,37 @@ export default function HomeScreen() {
 
         {usesStreaming === 'sim' && (
           <View style={styles.streamingCard}>
-            <View style={styles.streamingCardHeader}>
-              <Text style={styles.streamingTitle}>Quais servicos voce assina?</Text>
-              <Text style={styles.streamingCounter}>{selectedStreamingServices.length} selecionado(s)</Text>
+            <View style={styles.streamingCardBanner}>
+              <Text style={styles.streamingCardBannerText}>SERVICOS DE STREAMING</Text>
             </View>
-            <Text style={styles.streamingHint}>Toque para selecionar um ou mais servicos.</Text>
 
-            <View style={styles.streamingOptionsContainer}>
-              {streamingServices.map((service) => {
-                const isSelected = selectedStreamingServices.includes(service);
-                return (
-                  <Pressable
-                    key={service}
-                    onPress={() => toggleStreamingService(service)}
-                    style={[styles.streamingOption, isSelected && styles.streamingOptionActive]}>
-                    <Text style={[styles.streamingCheck, isSelected && styles.streamingCheckActive]}>
-                      {isSelected ? '✓' : '+'}
-                    </Text>
-                    <Text style={[styles.streamingOptionText, isSelected && styles.streamingOptionTextActive]}>
-                      {service}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={styles.streamingCardBody}>
+              <View style={styles.streamingCardHeader}>
+                <Text style={styles.streamingTitle}>Escolha os servicos que o cliente assina</Text>
+                <Text style={styles.streamingCounter}>{selectedStreamingServices.length} marcado(s)</Text>
+              </View>
+              <Text style={styles.streamingHint}>Selecione uma ou mais opcoes para continuar.</Text>
+
+              <View style={styles.streamingOptionsContainer}>
+                {streamingServices.map((service) => {
+                  const isSelected = selectedStreamingServices.includes(service);
+                  return (
+                    <Pressable
+                      key={service}
+                      onPress={() => toggleStreamingService(service)}
+                      style={[styles.streamingOption, isSelected && styles.streamingOptionActive]}>
+                      <View style={[styles.streamingBullet, isSelected && styles.streamingBulletActive]}>
+                        <Text style={[styles.streamingCheck, isSelected && styles.streamingCheckActive]}>
+                          {isSelected ? 'X' : '+'}
+                        </Text>
+                      </View>
+                      <Text style={[styles.streamingOptionText, isSelected && styles.streamingOptionTextActive]}>
+                        {service}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
 
             {selectedStreamingServices.length > 0 && (
@@ -183,7 +197,7 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/login')}>
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutText}>Voltar para LoginScreen</Text>
       </TouchableOpacity>
     </ScrollView>
@@ -259,75 +273,107 @@ const styles = StyleSheet.create({
   choiceTextActive: {
     color: '#0B2E23',
   },
-  streamingOptionsContainer: {
-    marginTop: 10,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
   streamingCard: {
     marginTop: 12,
     borderWidth: 1,
-    borderColor: '#E3E9E5',
-    backgroundColor: '#FAFCFB',
-    borderRadius: 14,
-    padding: 12,
+    borderColor: '#D9DEE8',
+    backgroundColor: '#F4F6FA',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  streamingCardBanner: {
+    backgroundColor: '#E7EBF1',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D9DEE8',
+  },
+  streamingCardBannerText: {
+    color: '#7A8699',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+  },
+  streamingCardBody: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 12,
   },
   streamingCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: 10,
   },
   streamingTitle: {
-    color: '#123B2F',
-    fontSize: 13,
+    color: '#1E2430',
+    fontSize: 16,
     fontWeight: '700',
+    flex: 1,
+    paddingRight: 10,
   },
   streamingCounter: {
-    color: '#48665B',
-    fontSize: 11,
+    color: '#5C6779',
+    fontSize: 10,
     fontWeight: '600',
-    backgroundColor: '#EFF4F1',
+    backgroundColor: '#EEF2F7',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
   },
   streamingHint: {
-    color: '#628177',
-    fontSize: 11,
-    marginTop: 5,
+    color: '#7A8699',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  streamingOptionsContainer: {
+    marginTop: 14,
+    gap: 8,
   },
   streamingOption: {
     borderWidth: 1,
-    borderColor: '#B6C0BB',
-    borderRadius: 999,
-    paddingVertical: 8,
+    borderColor: '#D9DEE8',
+    borderRadius: 12,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 10,
   },
   streamingOptionActive: {
-    borderColor: '#C8AA56',
-    backgroundColor: '#F7EFCF',
+    borderColor: '#2D66F6',
+    backgroundColor: '#EEF4FF',
+  },
+  streamingBullet: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#E7EBF1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  streamingBulletActive: {
+    backgroundColor: '#2D66F6',
   },
   streamingCheck: {
-    color: '#7A8D86',
-    width: 14,
+    color: '#6D7787',
+    fontSize: 11,
     textAlign: 'center',
     fontWeight: '700',
   },
   streamingCheckActive: {
-    color: '#0B2E23',
+    color: '#FFFFFF',
   },
   streamingOptionText: {
-    color: '#26453A',
+    color: '#2C3442',
     fontWeight: '600',
-    fontSize: 12,
+    fontSize: 13,
+    flex: 1,
   },
   streamingOptionTextActive: {
-    color: '#0B2E23',
+    color: '#173A94',
   },
   planCard: {
     marginTop: 12,

@@ -1,10 +1,35 @@
 import { Link, router } from 'expo-router';
 import { Image } from 'expo-image';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useState } from 'react';
+import { login } from '@/services/authService';
 
 export default function LoginScreen() {
-  const entrarNoApp = () => {
-    router.replace('/(tabs)');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const entrarNoApp = async () => {
+    if (!email.trim() || !password.trim()) {
+      alert('Preencha email e senha.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await login(email.trim(), password);
+      router.replace('/(tabs)');
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-credential') {
+        alert('Email ou senha invalidos.');
+      } else if (error.code === 'auth/invalid-email') {
+        alert('Email invalido.');
+      } else {
+        alert('Nao foi possivel entrar. Tente novamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -17,11 +42,21 @@ export default function LoginScreen() {
       <Text style={styles.subtitle}>Entre com seu login para continuar</Text>
 
       <View style={styles.form}>
-        <Text style={styles.label}>Login</Text>
-        <TextInput placeholder="Seu login" placeholderTextColor="#6E7B75" style={styles.input} />
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="Seu email"
+          placeholderTextColor="#6E7B75"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          style={styles.input}
+        />
 
         <Text style={styles.label}>Senha</Text>
         <TextInput
+          value={password}
+          onChangeText={setPassword}
           placeholder="Sua senha"
           placeholderTextColor="#6E7B75"
           secureTextEntry
@@ -29,7 +64,7 @@ export default function LoginScreen() {
         />
 
         <TouchableOpacity onPress={entrarNoApp} style={styles.button}>
-          <Text style={styles.buttonText}>Entrar</Text>
+          <Text style={styles.buttonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
         </TouchableOpacity>
       </View>
 

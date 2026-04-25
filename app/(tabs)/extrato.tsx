@@ -1,0 +1,250 @@
+import { useFinance, type Expense } from '@/contexts/finance-context';
+import { Redirect } from 'expo-router';
+import { Timestamp } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+function getExpenseDate(value: number | Timestamp): Date {
+  if (typeof value === 'number') {
+    return new Date(value);
+  }
+
+  return value.toDate();
+}
+
+function formatMonthYear(date: Date): string {
+  const month = date.toLocaleDateString('pt-BR', { month: 'long' });
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`;
+}
+
+function formatDay(date: Date): string {
+  return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+type MonthlyGroup = {
+  key: string;
+  label: string;
+  total: number;
+  expenses: (Expense & { parsedDate: Date })[];
+};
+
+export default function ExtratoScreen() {
+  const { onboardingCompleted, expenses } = useFinance();
+  const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
+
+  const monthlyStatement = useMemo<MonthlyGroup[]>(() => {
+    const grouped = new Map<string, MonthlyGroup>();
+
+    for (const expense of expenses) {
+      const parsedDate = getExpenseDate(expense.createdAt);
+      const monthStart = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), 1);
+      const key = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}`;
+      const current = grouped.get(key);
+
+      if (!current) {
+        grouped.set(key, {
+          key,
+          label: formatMonthYear(monthStart),
+          total: expense.amount,
+          expenses: [{ ...expense, parsedDate }],
+        });
+        continue;
+      }
+
+      current.total += expense.amount;
+      current.expenses.push({ ...expense, parsedDate });
+    }
+
+    return [...grouped.values()]
+      .map((group) => ({
+        ...group,
+        total: Math.round(group.total * 100) / 100,
+        expenses: [...group.expenses].sort(
+          (a, b) => b.parsedDate.getTime() - a.parsedDate.getTime(),
+        ),
+      }))
+      .sort((a, b) => b.key.localeCompare(a.key));
+  }, [expenses]);
+
+  useEffect(() => {
+    if (monthlyStatement.length === 0) {
+      setExpandedMonthKey(null);
+      return;
+    }
+
+    setExpandedMonthKey((current) =>
+      current && monthlyStatement.some((group) => group.key === current)
+        ? current
+        : monthlyStatement[0].key,
+    );
+  }, [monthlyStatement]);
+
+  if (!onboardingCompleted) {
+    return <Redirect href="/(tabs)" />;
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
+      <Text style={styles.title}>Extrato</Text>
+      <Text style={styles.subtitle}>Veja por mes e ano tudo o que foi salvo no seu controle.</Text>
+
+      {monthlyStatement.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>Nenhum gasto salvo ainda</Text>
+          <Text style={styles.emptyText}>Adicione gastos para montar o extrato mensal.</Text>
+        </View>
+      ) : (
+        monthlyStatement.map((month) => {
+          const isExpanded = expandedMonthKey === month.key;
+
+          return (
+            <View key={month.key} style={styles.monthCard}>
+              <Pressable
+                onPress={() => setExpandedMonthKey((current) => (current === month.key ? null : month.key))}
+                style={styles.monthHeader}>
+                <View style={styles.monthHeaderText}>
+                  <Text style={styles.monthLabel}>{month.label}</Text>
+                  <Text style={styles.monthMeta}>{month.expenses.length} gasto(s) registrado(s)</Text>
+                </View>
+                <View style={styles.monthHeaderSide}>
+                  <Text style={styles.monthTotal}>{formatCurrency(month.total)}</Text>
+                  <Text style={styles.monthToggle}>{isExpanded ? 'Ocultar' : 'Ver gastos'}</Text>
+                </View>
+              </Pressable>
+
+              {isExpanded && (
+                <View style={styles.expenseList}>
+                  {month.expenses.map((expense) => (
+                    <View key={expense.id} style={styles.expenseRow}>
+                      <View style={styles.expenseTextWrap}>
+                        <Text style={styles.expenseDescription}>{expense.description}</Text>
+                        <Text style={styles.expenseMeta}>
+                          {expense.category} - {formatDay(expense.parsedDate)}
+                        </Text>
+                      </View>
+                      <Text style={styles.expenseAmount}>{formatCurrency(expense.amount)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          );
+        })
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: '#F6F7F3',
+  },
+  container: {
+    padding: 20,
+    paddingBottom: 32,
+    backgroundColor: '#F6F7F3',
+    gap: 14,
+  },
+  title: {
+    color: '#0B2E23',
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  subtitle: {
+    color: '#40534D',
+    fontSize: 14,
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: '#D9DEE8',
+  },
+  emptyTitle: {
+    color: '#1E2430',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyText: {
+    color: '#6D7787',
+    fontSize: 13,
+    marginTop: 6,
+  },
+  monthCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#D9DEE8',
+    overflow: 'hidden',
+  },
+  monthHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: '#F9FBFD',
+  },
+  monthHeaderText: {
+    flex: 1,
+  },
+  monthLabel: {
+    color: '#1E2430',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  monthMeta: {
+    color: '#7A8699',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  monthHeaderSide: {
+    alignItems: 'flex-end',
+  },
+  monthTotal: {
+    color: '#0B2E23',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  monthToggle: {
+    color: '#2D66F6',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  expenseList: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  expenseRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#EEF2F7',
+  },
+  expenseTextWrap: {
+    flex: 1,
+  },
+  expenseDescription: {
+    color: '#1E2430',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  expenseMeta: {
+    color: '#7A8699',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  expenseAmount: {
+    color: '#0B2E23',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});

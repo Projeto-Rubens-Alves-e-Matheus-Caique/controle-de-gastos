@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { trintaDias } from '@/services/gastosServices';
+import { listarGastos } from '@/services/gastosServices';
 import { adicionarGasto } from '@/services/gastosServices';
 import { Timestamp } from 'firebase/firestore';
 
@@ -25,6 +25,11 @@ function startOfDay(date: Date): Date {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
   return copy;
+}
+
+function getWeekdayInitial(date: Date): string {
+  const weekdayInitials = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+  return weekdayInitials[date.getDay()] ?? '';
 }
 
 export type Period = '7d' | '30d' | '180d' | '365d';
@@ -148,7 +153,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const carregar = async () => {
-      const dados = await trintaDias();
+      const dados = await listarGastos();
       setExpenses(dados as Expense[]);
     };
 
@@ -233,7 +238,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
 
     const spent = entries.reduce((sum, [, value]) => sum + value, 0);
-    const free = Math.max(0, Math.round((monthlyIncome - spent) * 100) / 100);
+    const free = Math.round((monthlyIncome - spent) * 100) / 100;
 
     const groupedMap = new Map<string, { total: number; label: string }>();
 
@@ -244,7 +249,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       let label = '';
 
       if (period === '180d' || period === '365d') {
-        key = `${date.getFullYear()}-${date.getMonth()}`;
+        key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         label = date.toLocaleDateString('pt-BR', { month: 'short' });
       } else {
         key = date.toISOString().slice(0, 10);
@@ -262,25 +267,58 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const bars: { key: string; label: string; total: number }[] = [];
 
     if (period === '180d' || period === '365d') {
-      const monthCount = period === '180d' ? 6 : 12;
-      const currentMonth = new Date();
-      currentMonth.setDate(1);
-      currentMonth.setHours(0, 0, 0, 0);
+      if (period === '365d') {
+        const currentYear = new Date().getFullYear();
 
-      for (let index = monthCount - 1; index >= 0; index -= 1) {
-        const date = new Date(currentMonth);
-        date.setMonth(currentMonth.getMonth() - index);
+        for (let monthIndex = 0; monthIndex < 12; monthIndex += 1) {
+          const date = new Date(currentYear, monthIndex, 1);
+          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          const existing = groupedMap.get(key);
 
-        const key = `${date.getFullYear()}-${date.getMonth()}`;
-        const existing = groupedMap.get(key);
+          bars.push({
+            key,
+            label: date.toLocaleDateString('pt-BR', { month: 'short' }),
+            total: Math.round((existing?.total ?? 0) * 100) / 100,
+          });
+        }
+      } else {
+        const currentMonth = new Date();
+        currentMonth.setDate(1);
+        currentMonth.setHours(0, 0, 0, 0);
 
-        bars.push({
-          key,
-          label: date.toLocaleDateString('pt-BR', { month: 'short' }),
-          total: Math.round((existing?.total ?? 0) * 100) / 100,
-        });
+        for (let index = 5; index >= 0; index -= 1) {
+          const date = new Date(currentMonth);
+          date.setMonth(currentMonth.getMonth() - index);
+
+          const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          const existing = groupedMap.get(key);
+
+          bars.push({
+            key,
+            label: date.toLocaleDateString('pt-BR', { month: 'short' }),
+            total: Math.round((existing?.total ?? 0) * 100) / 100,
+          });
+        }
       }
     } else {
+      if (period === '30d') {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+        for (let day = 1; day <= lastDayOfMonth; day += 1) {
+          const date = new Date(currentYear, currentMonth, day);
+          const key = date.toISOString().slice(0, 10);
+          const existing = groupedMap.get(key);
+
+          bars.push({
+            key,
+            label: String(day),
+            total: Math.round((existing?.total ?? 0) * 100) / 100,
+          });
+        }
+      } else {
       const days = PERIOD_DAYS[period];
       const today = startOfDay(new Date());
 
@@ -293,9 +331,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
         bars.push({
           key,
-          label: date.getDate().toString(),
+          label: period === '7d' ? getWeekdayInitial(date) : date.getDate().toString(),
           total: Math.round((existing?.total ?? 0) * 100) / 100,
         });
+      }
       }
     }
 

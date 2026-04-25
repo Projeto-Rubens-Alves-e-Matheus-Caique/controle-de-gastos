@@ -1,7 +1,5 @@
-import { getFirestore, collection, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp, getDocs } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-import { Timestamp } from 'firebase/firestore';
-import { getDocs } from 'firebase/firestore';
 import { Expense } from '@/contexts/finance-context';
 import { auth } from './firebaseConfig';
 
@@ -27,20 +25,12 @@ export const adicionarGasto = async (gasto: NewExpense) => {
     });
 };
 
-export const trintaDias = async ():Promise<Expense[]> => {
+export const listarGastos = async (): Promise<Expense[]> => {
     const user = auth.currentUser;
     
     if (!user) return [];
 
-    const dataLimite = new Date();
-    dataLimite.setDate(dataLimite.getDate() - 30);
-
-    const q = query(
-        collection(db, 'users', user.uid, 'gastos'),
-        where('createdAt', '>=', Timestamp.fromDate(dataLimite))
-    );
-
-    const snapshot = await getDocs(q);
+    const snapshot = await getDocs(collection(db, 'users', user.uid, 'gastos'));
 
     return snapshot.docs.map((doc) => {
         const data = doc.data();
@@ -54,6 +44,8 @@ export const trintaDias = async ():Promise<Expense[]> => {
         };
     });
 }
+
+export const trintaDias = listarGastos;
 
 
 

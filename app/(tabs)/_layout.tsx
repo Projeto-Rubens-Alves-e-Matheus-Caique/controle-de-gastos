@@ -1,4 +1,4 @@
-import { Tabs, Slot, Redirect } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import React from 'react';
 import { Image, StyleSheet } from 'react-native';
 
@@ -50,6 +50,22 @@ function TabsLayoutInner() {
           title: 'Graficos',
           href: !onboardingCompleted ? null : undefined,
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="extrato"
+        options={{
+          title: 'Extrato',
+          href: !onboardingCompleted ? null : undefined,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="list.bullet.rectangle.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="pagamento"
+        options={{
+          title: 'Pagamento',
+          href: !onboardingCompleted ? null : undefined,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="creditcard.fill" color={color} />,
         }}
       />
       <Tabs.Screen

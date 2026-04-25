@@ -2,6 +2,7 @@ import { parseMoneyInput, useFinance } from '@/contexts/finance-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
+import { logout } from '@/services/authService';
 import {
   Alert,
   Image,
@@ -114,6 +115,11 @@ export default function PerfilScreen() {
     Alert.alert('Salvo', 'Profissao e salario atualizados.');
   };
 
+  const handleLogout = async () => {
+    await logout();
+    router.replace('/login');
+  };
+
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;
   }
@@ -163,7 +169,7 @@ export default function PerfilScreen() {
           <Text style={styles.saveButtonText}>Salvar alteracoes</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={() => router.replace('/login')}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
