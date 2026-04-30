@@ -35,6 +35,11 @@ export default function HomeScreen() {
     'Paramount',
   ];
 
+  const hasOccupation = occupation.trim().length > 0;
+  const parsedIncome = parseMoneyInput(income);
+  const hasMonthlyIncome = parsedIncome > 0;
+  const hasRequiredFinancialInfo = hasOccupation && hasMonthlyIncome;
+
   const toggleStreamingService = (service: string) => {
     const allServicesOption = 'Assino todos os servicos';
 
@@ -56,6 +61,7 @@ export default function HomeScreen() {
 
   const canConfirm =
     !savingOnboarding &&
+    hasRequiredFinancialInfo &&
     usesStreaming !== null &&
     (usesStreaming === 'nao' ||
       (usesStreaming === 'sim' &&
@@ -69,7 +75,7 @@ export default function HomeScreen() {
       setSavingOnboarding(true);
       setOnboarding({
         occupation: occupation.trim(),
-        monthlyIncome: parseMoneyInput(income),
+        monthlyIncome: parsedIncome,
         usesStreaming: usesStreaming === 'sim',
         streamingServices: usesStreaming === 'sim' ? selectedStreamingServices : [],
         streamingPlanTier: usesStreaming === 'sim' ? streamingPlanTier : null,
@@ -201,10 +207,13 @@ export default function HomeScreen() {
             {savingOnboarding ? 'Salvando...' : 'Confirmar'}
           </Text>
         </TouchableOpacity>
-        {usesStreaming === null && (
+        {!hasRequiredFinancialInfo && (
+          <Text style={styles.confirmHint}>Informe com que trabalha e quanto recebe por mes para continuar.</Text>
+        )}
+        {hasRequiredFinancialInfo && usesStreaming === null && (
           <Text style={styles.confirmHint}>Responda sobre streaming para habilitar a confirmacao.</Text>
         )}
-        {usesStreaming === 'sim' && !canConfirm && (
+        {hasRequiredFinancialInfo && usesStreaming === 'sim' && !canConfirm && (
           <Text style={styles.confirmHint}>Selecione os servicos e o plano para confirmar.</Text>
         )}
       </View>
