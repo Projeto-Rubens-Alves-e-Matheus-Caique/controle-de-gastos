@@ -11,6 +11,7 @@ type NewExpense = {
     amount: number;
     category: string;
     description: string;
+    createdAt?: number;
 };
 
 export const adicionarGasto = async (gasto: NewExpense) => {
@@ -21,7 +22,7 @@ export const adicionarGasto = async (gasto: NewExpense) => {
 
     await addDoc(collection(db, 'users', user.uid, 'gastos'), {
         ...gasto,
-        createdAt: serverTimestamp(),
+        createdAt: gasto.createdAt ? Timestamp.fromDate(new Date(gasto.createdAt)) : serverTimestamp(),
     });
 };
 

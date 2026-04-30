@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { listarGastos } from '@/services/gastosServices';
 import { adicionarGasto } from '@/services/gastosServices';
+import { adicionarPagamento, listarPagamentos } from '@/services/pagamentosServices';
 import { Timestamp } from 'firebase/firestore';
 
 export type StreamingPlanTier = 'barato' | 'medio' | 'caro';
@@ -13,12 +14,48 @@ export type Expense = {
   createdAt: number | Timestamp;
 };
 
+export type PaymentStatus = 'correto' | 'menos' | 'bonus';
+
+export type PaymentAdjustment = {
+  monthKey: string;
+  status: PaymentStatus;
+  amount: number;
+};
+
+export type PaymentRecord = {
+  id: string;
+  monthKey: string;
+  status: PaymentStatus;
+  amount: number;
+  baseIncome: number;
+  incomeForMonth: number;
+  createdAt: number;
+};
+
 function getDate(value: number | Timestamp): Date {
   if (typeof value === 'number') {
     return new Date(value);
   }
 
   return value.toDate();
+}
+
+function getMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function formatMonthYear(date: Date): string {
+  const month = date.toLocaleDateString('pt-BR', { month: 'long' });
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} ${date.getFullYear()}`;
+}
+
+function getMonthStartFromKey(monthKey: string): Date {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+function getNextMonthStart(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1);
 }
 
 function startOfDay(date: Date): Date {
@@ -110,6 +147,11 @@ type FinanceContextValue = {
   setProfileAvatarUri: (uri: string | null) => void;
   occupation: string;
   monthlyIncome: number;
+  currentMonthIncome: number;
+  activeMonthKey: string;
+  activeMonthLabel: string;
+  paymentAdjustment: PaymentAdjustment | null;
+  paymentRecords: PaymentRecord[];
   usesStreaming: boolean;
   streamingServices: string[];
   streamingPlanTier: StreamingPlanTier | null;
@@ -118,6 +160,8 @@ type FinanceContextValue = {
   setOnboarding: (data: OnboardingPayload) => void;
   setMonthlyIncome: (value: number) => void;
   setOccupation: (value: string) => void;
+  setPaymentAdjustment: (input: { status: PaymentStatus; amount?: number }) => void;
+  confirmPayment: (input: { status: PaymentStatus; amount?: number }) => Promise<boolean>;
   addExpense: (input: { amount: number; category: string; description: string }) => void;
   categoryBreakdown: { name: string; value: number; color: string }[];
   totalSpent: number;
@@ -145,6 +189,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [profileAvatarUri, setProfileAvatarUri] = useState<string | null>(null);
   const [occupation, setOccupation] = useState('');
   const [monthlyIncome, setMonthlyIncome] = useState(0);
+  const [activeMonthStart, setActiveMonthStart] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [paymentAdjustment, setPaymentAdjustmentState] = useState<PaymentAdjustment | null>(null);
+  const [paymentRecords, setPaymentRecords] = useState<PaymentRecord[]>([]);
   const [usesStreaming, setUsesStreaming] = useState(false);
   const [streamingServices, setStreamingServices] = useState<string[]>([]);
   const [streamingPlanTier, setStreamingPlanTier] = useState<StreamingPlanTier | null>(null);
@@ -153,8 +203,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const carregar = async () => {
-      const dados = await listarGastos();
-      setExpenses(dados as Expense[]);
+      const [gastos, pagamentos] = await Promise.all([listarGastos(), listarPagamentos()]);
+      setExpenses(gastos as Expense[]);
+      setPaymentRecords(pagamentos);
+
+      const latestPayment = [...pagamentos].sort((a, b) => b.monthKey.localeCompare(a.monthKey))[0];
+      if (latestPayment) {
+        const now = new Date();
+        const currentRealMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const nextOpenMonth = getNextMonthStart(getMonthStartFromKey(latestPayment.monthKey));
+        setActiveMonthStart(nextOpenMonth > currentRealMonth ? nextOpenMonth : currentRealMonth);
+      }
     };
 
     carregar();
@@ -174,14 +233,89 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setOnboardingCompleted(true);
   }, []);
 
+  const setPaymentAdjustment = useCallback((input: { status: PaymentStatus; amount?: number }) => {
+    setPaymentAdjustmentState({
+      monthKey: getMonthKey(activeMonthStart),
+      status: input.status,
+      amount: Math.max(Math.round((input.amount ?? 0) * 100) / 100, 0),
+    });
+  }, [activeMonthStart]);
+
+  const currentMonthKey = getMonthKey(activeMonthStart);
+  const activeMonthLabel = formatMonthYear(activeMonthStart);
+  const activePaymentAdjustment =
+    paymentAdjustment?.monthKey === currentMonthKey ? paymentAdjustment : null;
+  const currentMonthIncome = useMemo(() => {
+    if (!activePaymentAdjustment || activePaymentAdjustment.status === 'correto') {
+      return monthlyIncome;
+    }
+
+    if (activePaymentAdjustment.status === 'menos') {
+      return Math.max(Math.round((monthlyIncome - activePaymentAdjustment.amount) * 100) / 100, 0);
+    }
+
+    return Math.round((monthlyIncome + activePaymentAdjustment.amount) * 100) / 100;
+  }, [activePaymentAdjustment, monthlyIncome]);
+
+  const getActiveMonthTimestamp = useCallback(() => {
+    const now = new Date();
+    const lastDay = new Date(
+      activeMonthStart.getFullYear(),
+      activeMonthStart.getMonth() + 1,
+      0,
+    ).getDate();
+    const date = new Date(activeMonthStart);
+    date.setDate(Math.min(now.getDate(), lastDay));
+    date.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    return date.getTime();
+  }, [activeMonthStart]);
+
+  const confirmPayment = useCallback(async (input: { status: PaymentStatus; amount?: number }) => {
+    const amount = Math.max(Math.round((input.amount ?? 0) * 100) / 100, 0);
+    const incomeForMonth =
+      input.status === 'menos'
+        ? Math.max(Math.round((monthlyIncome - amount) * 100) / 100, 0)
+        : input.status === 'bonus'
+          ? Math.round((monthlyIncome + amount) * 100) / 100
+          : monthlyIncome;
+    const record = {
+      id: `${Date.now()}`,
+      monthKey: getMonthKey(activeMonthStart),
+      status: input.status,
+      amount,
+      baseIncome: monthlyIncome,
+      incomeForMonth,
+      createdAt: Date.now(),
+    };
+
+    try {
+      await adicionarPagamento({
+        monthKey: record.monthKey,
+        status: record.status,
+        amount: record.amount,
+        baseIncome: record.baseIncome,
+        incomeForMonth: record.incomeForMonth,
+        createdAt: record.createdAt,
+      });
+      setPaymentRecords((prev) => [...prev, record]);
+      setPaymentAdjustmentState(null);
+      setActiveMonthStart((current) => getNextMonthStart(current));
+      return true;
+    } catch (error) {
+      console.error('Erro ao salvar pagamento:', error);
+      return false;
+    }
+  }, [activeMonthStart, monthlyIncome]);
+
   const addExpense = useCallback(async (input: { amount: number; category: string; description: string }) => {
     if (input.amount <= 0) return;
 
+    const createdAt = getActiveMonthTimestamp();
     const newExpense = {
       amount: Math.round(input.amount * 100) / 100,
       category: normalizeCategory(input.category),
       description: input.description.trim(),
-      createdAt: Date.now(),
+      createdAt,
     };
 
     try {
@@ -189,6 +323,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         amount: newExpense.amount,
         category: newExpense.category,
         description: newExpense.description,
+        createdAt,
       });
 
       setExpenses((prev) => [
@@ -196,16 +331,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         {
           ...newExpense,
           id: `${Date.now()}`,
-          createdAt: Date.now(),
         },
       ]);
     } catch (error) {
       console.error('Erro ao salvar gasto:', error);
     }
-  }, []);
+  }, [getActiveMonthTimestamp]);
+
+  const activeMonthExpenses = useMemo(() => (
+    expenses.filter((expense) => {
+      const date = getDate(expense.createdAt);
+      return getMonthKey(date) === currentMonthKey;
+    })
+  ), [currentMonthKey, expenses]);
 
   const filteredExpenses = useMemo(() => {
-    const now = new Date();
+    const now = new Date(activeMonthStart);
+    now.setMonth(activeMonthStart.getMonth() + 1);
+    now.setDate(0);
+    now.setHours(23, 59, 59, 999);
     const days = PERIOD_DAYS[period];
 
     return expenses.filter((expense) => {
@@ -213,7 +357,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const diff = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
       return diff <= days;
     });
-  }, [expenses, period]);
+  }, [activeMonthStart, expenses, period]);
 
   const { categoryBreakdown, totalSpent, freeToSpend, monthlyBars } = useMemo(() => {
     const map = new Map<string, number>();
@@ -222,7 +366,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       map.set(STREAMING_CATEGORY, streamingEstimatedMonthly);
     }
 
-    for (const expense of filteredExpenses) {
+    for (const expense of activeMonthExpenses) {
       const key = expense.category;
       map.set(key, (map.get(key) ?? 0) + expense.amount);
     }
@@ -238,7 +382,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
 
     const spent = entries.reduce((sum, [, value]) => sum + value, 0);
-    const free = Math.round((monthlyIncome - spent) * 100) / 100;
+    const free = Math.round((currentMonthIncome - spent) * 100) / 100;
 
     const groupedMap = new Map<string, { total: number; label: string }>();
 
@@ -302,9 +446,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     } else {
       if (period === '30d') {
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
+        const currentYear = activeMonthStart.getFullYear();
+        const currentMonth = activeMonthStart.getMonth();
         const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
         for (let day = 1; day <= lastDayOfMonth; day += 1) {
@@ -320,7 +463,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         }
       } else {
       const days = PERIOD_DAYS[period];
-      const today = startOfDay(new Date());
+      const today = startOfDay(new Date(activeMonthStart.getFullYear(), activeMonthStart.getMonth() + 1, 0));
 
       for (let index = days - 1; index >= 0; index -= 1) {
         const date = new Date(today);
@@ -346,7 +489,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       freeToSpend: free,
       monthlyBars: bars,
     };
-  }, [filteredExpenses, monthlyIncome, period, streamingEstimatedMonthly]);
+  }, [activeMonthExpenses, activeMonthStart, currentMonthIncome, filteredExpenses, period, streamingEstimatedMonthly]);
 
   const value: FinanceContextValue = {
     onboardingCompleted,
@@ -354,6 +497,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setProfileAvatarUri,
     occupation,
     monthlyIncome,
+    currentMonthIncome,
+    activeMonthKey: currentMonthKey,
+    activeMonthLabel,
+    paymentAdjustment: activePaymentAdjustment,
+    paymentRecords,
     usesStreaming,
     streamingServices,
     streamingPlanTier,
@@ -362,6 +510,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setOnboarding,
     setMonthlyIncome,
     setOccupation,
+    setPaymentAdjustment,
+    confirmPayment,
     addExpense,
     categoryBreakdown,
     totalSpent,

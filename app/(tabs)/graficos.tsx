@@ -18,6 +18,8 @@ export default function GraficosScreen() {
   const {
     onboardingCompleted,
     monthlyIncome,
+    currentMonthIncome,
+    paymentAdjustment,
     categoryBreakdown,
     totalSpent,
     freeToSpend,
@@ -28,7 +30,7 @@ export default function GraficosScreen() {
     setPeriod,
   } = useFinance();
 
-  const freeToSpendRatio = monthlyIncome > 0 ? freeToSpend / monthlyIncome : 0;
+  const freeToSpendRatio = currentMonthIncome > 0 ? freeToSpend / currentMonthIncome : 0;
   const freeToSpendColor =
     freeToSpendRatio <= 0.1 ? '#C62828' : freeToSpendRatio <= 0.3 ? '#B28704' : '#0B2E23';
 
@@ -158,8 +160,14 @@ export default function GraficosScreen() {
         )}
         <Text style={[styles.freeValue, { color: freeToSpendColor }]}>{formatCurrency(freeToSpend)}</Text>
         <Text style={styles.metaLine}>
-          Salario: {formatCurrency(monthlyIncome)} · Gasto total: {formatCurrency(totalSpent)}
+          Salario deste mes: {formatCurrency(currentMonthIncome)} · Gasto total: {formatCurrency(totalSpent)}
         </Text>
+
+        {paymentAdjustment && paymentAdjustment.status !== 'correto' && (
+          <Text style={styles.streamingNote}>
+            Salario base: {formatCurrency(monthlyIncome)}
+          </Text>
+        )}
 
         {usesStreaming && streamingEstimatedMonthly > 0 && (
           <Text style={styles.streamingNote}>

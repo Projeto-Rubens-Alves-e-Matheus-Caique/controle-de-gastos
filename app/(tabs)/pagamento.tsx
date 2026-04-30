@@ -1,11 +1,69 @@
-import { useFinance } from '@/contexts/finance-context';
+import { parseMoneyInput, useFinance, type PaymentStatus } from '@/contexts/finance-context';
 import { Redirect } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 export default function PagamentoScreen() {
-  const { onboardingCompleted } = useFinance();
-  const [paymentStatus, setPaymentStatus] = useState<'correto' | 'menos' | 'bonus' | null>(null);
+  const {
+    onboardingCompleted,
+    monthlyIncome,
+    activeMonthLabel,
+    confirmPayment,
+  } = useFinance();
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const [adjustmentValue, setAdjustmentValue] = useState('');
+
+  const parsedAdjustment = parseMoneyInput(adjustmentValue);
+  const isAdjustmentStatus = paymentStatus === 'menos' || paymentStatus === 'bonus';
+  const canConfirm = paymentStatus === 'correto' || (isAdjustmentStatus && parsedAdjustment > 0);
+  const previewIncome = useMemo(() => {
+    if (paymentStatus === 'menos') {
+      return Math.max(monthlyIncome - parsedAdjustment, 0);
+    }
+
+    if (paymentStatus === 'bonus') {
+      return monthlyIncome + parsedAdjustment;
+    }
+
+    return monthlyIncome;
+  }, [monthlyIncome, parsedAdjustment, paymentStatus]);
+
+  const handleSelectStatus = (status: PaymentStatus) => {
+    setPaymentStatus(status);
+
+    if (status === 'correto') {
+      setAdjustmentValue('');
+    }
+  };
+
+  const handleConfirmPayment = async () => {
+    if (!paymentStatus) {
+      Alert.alert('Escolha uma opcao', 'Selecione se recebeu tudo certo, a mais ou a menos.');
+      return;
+    }
+
+    if (isAdjustmentStatus && parsedAdjustment <= 0) {
+      Alert.alert('Informe o valor', 'Digite um valor maior que zero para confirmar este pagamento.');
+      return;
+    }
+
+    const saved = await confirmPayment({
+      status: paymentStatus,
+      amount: isAdjustmentStatus ? parsedAdjustment : 0,
+    });
+
+    if (!saved) {
+      Alert.alert('Erro ao salvar', 'Nao foi possivel confirmar o pagamento agora.');
+      return;
+    }
+
+    setPaymentStatus(null);
+    setAdjustmentValue('');
+    Alert.alert('Pagamento confirmado', 'Saldo reiniciado para o proximo mes.');
+  };
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;
@@ -14,7 +72,7 @@ export default function PagamentoScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
       <Text style={styles.title}>Pagamento</Text>
-      <Text style={styles.subtitle}>Informe como o salario foi recebido neste mes.</Text>
+      <Text style={styles.subtitle}>Informe como o salario foi recebido em {activeMonthLabel}.</Text>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Voce recebeu o salario corretamente?</Text>
@@ -24,7 +82,7 @@ export default function PagamentoScreen() {
 
         <View style={styles.options}>
           <Pressable
-            onPress={() => setPaymentStatus('correto')}
+            onPress={() => handleSelectStatus('correto')}
             style={[styles.optionButton, paymentStatus === 'correto' && styles.optionButtonActive]}>
             <Text style={[styles.optionTitle, paymentStatus === 'correto' && styles.optionTitleActive]}>
               Recebi correto
@@ -33,7 +91,7 @@ export default function PagamentoScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => setPaymentStatus('menos')}
+            onPress={() => handleSelectStatus('menos')}
             style={[styles.optionButton, paymentStatus === 'menos' && styles.optionButtonWarning]}>
             <Text style={[styles.optionTitle, paymentStatus === 'menos' && styles.optionTitleWarning]}>
               Recebi a menos
@@ -42,7 +100,7 @@ export default function PagamentoScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => setPaymentStatus('bonus')}
+            onPress={() => handleSelectStatus('bonus')}
             style={[styles.optionButton, paymentStatus === 'bonus' && styles.optionButtonBonus]}>
             <Text style={[styles.optionTitle, paymentStatus === 'bonus' && styles.optionTitleBonus]}>
               Recebi bonificacao
@@ -51,15 +109,50 @@ export default function PagamentoScreen() {
           </Pressable>
         </View>
 
+        {isAdjustmentStatus && (
+          <View style={styles.adjustmentBox}>
+            <Text style={styles.label}>
+              {paymentStatus === 'menos'
+                ? 'Quanto voce recebeu a menos?'
+                : 'Qual foi o valor da bonificacao?'}
+            </Text>
+            <TextInput
+              value={adjustmentValue}
+              onChangeText={setAdjustmentValue}
+              placeholder={paymentStatus === 'menos' ? 'Ex: 250' : 'Ex: 500'}
+              keyboardType="numeric"
+              placeholderTextColor="#6D7F79"
+              style={styles.input}
+            />
+
+            <Text style={styles.previewText}>
+              Salario base: {formatCurrency(monthlyIncome)} | Neste mes: {formatCurrency(previewIncome)}
+            </Text>
+          </View>
+        )}
+
         {paymentStatus === 'correto' && (
-          <Text style={styles.feedback}>Pagamento registrado como correto.</Text>
+          <Text style={styles.feedback}>Tudo certo. O salario deste mes sera {formatCurrency(monthlyIncome)}.</Text>
         )}
-        {paymentStatus === 'menos' && (
-          <Text style={styles.feedbackWarning}>Pagamento registrado com valor menor.</Text>
+        {paymentStatus === 'menos' && parsedAdjustment > 0 && (
+          <Text style={styles.feedbackWarning}>
+            Salario deste mes ficara {formatCurrency(previewIncome)}.
+          </Text>
         )}
-        {paymentStatus === 'bonus' && (
-          <Text style={styles.feedbackBonus}>Pagamento registrado com bonificacao.</Text>
+        {paymentStatus === 'bonus' && parsedAdjustment > 0 && (
+          <Text style={styles.feedbackBonus}>
+            Bonificacao somada neste mes: {formatCurrency(previewIncome)}.
+          </Text>
         )}
+
+        <Pressable
+          onPress={handleConfirmPayment}
+          disabled={!canConfirm}
+          style={[styles.saveButton, !canConfirm && styles.saveButtonDisabled]}>
+          <Text style={[styles.saveButtonText, !canConfirm && styles.saveButtonTextDisabled]}>
+            Confirmar pagamento 
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -146,6 +239,53 @@ const styles = StyleSheet.create({
     color: '#6D7787',
     fontSize: 12,
     marginTop: 4,
+  },
+  adjustmentBox: {
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#E3E9E5',
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    padding: 12,
+  },
+  label: {
+    color: '#184335',
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D7DDD8',
+    borderRadius: 12,
+    color: '#0D2C22',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+  },
+  previewText: {
+    color: '#40534D',
+    fontSize: 12,
+    marginTop: 8,
+  },
+  saveButton: {
+    marginTop: 12,
+    backgroundColor: '#0B2E23',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    backgroundColor: '#B6C0BB',
+    opacity: 0.85,
+  },
+  saveButtonText: {
+    color: '#F5EBC8',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  saveButtonTextDisabled: {
+    color: '#F0F4F2',
   },
   feedback: {
     color: '#1D6B56',

@@ -1,4 +1,4 @@
-import { useFinance, type Expense } from '@/contexts/finance-context';
+import { useFinance, type Expense, type PaymentRecord } from '@/contexts/finance-context';
 import { Redirect } from 'expo-router';
 import { Timestamp } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
@@ -29,10 +29,11 @@ type MonthlyGroup = {
   label: string;
   total: number;
   expenses: (Expense & { parsedDate: Date })[];
+  paymentRecords: PaymentRecord[];
 };
 
 export default function ExtratoScreen() {
-  const { onboardingCompleted, expenses } = useFinance();
+  const { onboardingCompleted, expenses, paymentRecords } = useFinance();
   const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
 
   const monthlyStatement = useMemo<MonthlyGroup[]>(() => {
@@ -50,12 +51,32 @@ export default function ExtratoScreen() {
           label: formatMonthYear(monthStart),
           total: expense.amount,
           expenses: [{ ...expense, parsedDate }],
+          paymentRecords: [],
         });
         continue;
       }
 
       current.total += expense.amount;
       current.expenses.push({ ...expense, parsedDate });
+    }
+
+    for (const record of paymentRecords) {
+      const [year, month] = record.monthKey.split('-').map(Number);
+      const monthStart = new Date(year, month - 1, 1);
+      const current = grouped.get(record.monthKey);
+
+      if (!current) {
+        grouped.set(record.monthKey, {
+          key: record.monthKey,
+          label: formatMonthYear(monthStart),
+          total: 0,
+          expenses: [],
+          paymentRecords: [record],
+        });
+        continue;
+      }
+
+      current.paymentRecords.push(record);
     }
 
     return [...grouped.values()]
@@ -65,9 +86,10 @@ export default function ExtratoScreen() {
         expenses: [...group.expenses].sort(
           (a, b) => b.parsedDate.getTime() - a.parsedDate.getTime(),
         ),
+        paymentRecords: [...group.paymentRecords].sort((a, b) => b.createdAt - a.createdAt),
       }))
       .sort((a, b) => b.key.localeCompare(a.key));
-  }, [expenses]);
+  }, [expenses, paymentRecords]);
 
   useEffect(() => {
     if (monthlyStatement.length === 0) {
@@ -93,8 +115,8 @@ export default function ExtratoScreen() {
 
       {monthlyStatement.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Nenhum gasto salvo ainda</Text>
-          <Text style={styles.emptyText}>Adicione gastos para montar o extrato mensal.</Text>
+          <Text style={styles.emptyTitle}>Nenhum registro salvo ainda</Text>
+          <Text style={styles.emptyText}>Adicione gastos ou confirme um pagamento para montar o extrato mensal.</Text>
         </View>
       ) : (
         monthlyStatement.map((month) => {
@@ -107,7 +129,9 @@ export default function ExtratoScreen() {
                 style={styles.monthHeader}>
                 <View style={styles.monthHeaderText}>
                   <Text style={styles.monthLabel}>{month.label}</Text>
-                  <Text style={styles.monthMeta}>{month.expenses.length} gasto(s) registrado(s)</Text>
+                  <Text style={styles.monthMeta}>
+                    {month.expenses.length} gasto(s) e {month.paymentRecords.length} pagamento(s)
+                  </Text>
                 </View>
                 <View style={styles.monthHeaderSide}>
                   <Text style={styles.monthTotal}>{formatCurrency(month.total)}</Text>
@@ -117,6 +141,40 @@ export default function ExtratoScreen() {
 
               {isExpanded && (
                 <View style={styles.expenseList}>
+                  {month.paymentRecords.map((record) => {
+                    const isBonus = record.status === 'bonus';
+                    const isLess = record.status === 'menos';
+                    const title = isBonus
+                      ? 'Pagamento com bonificacao'
+                      : isLess
+                        ? 'Pagamento recebido a menos'
+                        : 'Pagamento recebido corretamente';
+                    const amountLabel = isBonus
+                      ? `+ ${formatCurrency(record.amount)}`
+                      : isLess
+                        ? `- ${formatCurrency(record.amount)}`
+                        : formatCurrency(record.incomeForMonth);
+
+                    return (
+                      <View key={record.id} style={styles.expenseRow}>
+                        <View style={styles.expenseTextWrap}>
+                          <Text style={styles.expenseDescription}>{title}</Text>
+                          <Text style={styles.expenseMeta}>
+                            Salario do mes: {formatCurrency(record.incomeForMonth)}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[
+                            styles.expenseAmount,
+                            isBonus && styles.positiveAmount,
+                            isLess && styles.negativeAmount,
+                          ]}>
+                          {amountLabel}
+                        </Text>
+                      </View>
+                    );
+                  })}
+
                   {month.expenses.map((expense) => (
                     <View key={expense.id} style={styles.expenseRow}>
                       <View style={styles.expenseTextWrap}>
@@ -246,5 +304,11 @@ const styles = StyleSheet.create({
     color: '#0B2E23',
     fontSize: 14,
     fontWeight: '700',
+  },
+  positiveAmount: {
+    color: '#1D6B56',
+  },
+  negativeAmount: {
+    color: '#B42318',
   },
 });

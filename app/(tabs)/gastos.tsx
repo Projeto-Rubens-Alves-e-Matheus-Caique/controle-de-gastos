@@ -9,7 +9,7 @@ export default function GastosScreen() {
   const [amountRaw, setAmountRaw] = useState('');
   const [category, setCategory] = useState('');
   const [showCategoryOptions, setShowCategoryOptions] = useState(false);
-  const categoryOptions = ['Alimentacao', 'Conta de luz', 'Conta de agua', 'Streaming'];
+  const categoryOptions = ['Alimentacao', 'Conta de luz', 'Conta de agua', 'Streaming', 'Games'];
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;
