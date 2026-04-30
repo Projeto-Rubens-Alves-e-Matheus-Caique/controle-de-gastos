@@ -2,22 +2,27 @@ import { router } from 'expo-router';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useState } from 'react';
 import { register } from '@/services/authService';
+import { useAuth } from '@/contexts/auth-context';
 
 export default function CreateAccountScreen() {
+  const { updateProfileName } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password){
+    const trimmedName = name.trim();
+
+    if (!trimmedName || !email || !password){
       alert('Preencha todos os campos');
       return;
     }
     try {
       setLoading(true);
 
-      await register(email, password);
+      await register(email, password, trimmedName);
+      await updateProfileName(trimmedName);
 
       alert('Conta criada com sucesso!');
 

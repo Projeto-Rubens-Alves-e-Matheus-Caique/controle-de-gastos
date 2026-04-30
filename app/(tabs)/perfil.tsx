@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Redirect, router } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { logout } from '@/services/authService';
+import { useAuth } from '@/contexts/auth-context';
 import {
   Alert,
   Image,
@@ -45,6 +46,7 @@ function pickImageFromWebFileInput(onPicked: (uri: string) => void) {
 }
 
 export default function PerfilScreen() {
+  const { profileName } = useAuth();
   const {
     onboardingCompleted,
     profileAvatarUri,
@@ -55,7 +57,7 @@ export default function PerfilScreen() {
     setMonthlyIncome,
   } = useFinance();
 
-  const [name] = useState('Perfil');
+  const name = profileName.trim() || 'Perfil';
   const [occupation, setOccupation] = useState(ctxOccupation || 'Designer');
   const [salary, setSalary] = useState(monthlyIncome > 0 ? String(monthlyIncome) : '3500');
 
@@ -128,7 +130,7 @@ export default function PerfilScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Perfil</Text>
+      <Text style={styles.title}>{name}</Text>
       <Text style={styles.subtitle}>Atualize seus dados pessoais e financeiros.</Text>
 
       <View style={styles.card}>

@@ -12,6 +12,8 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 function TabsLayoutInner() {
   const colorScheme = useColorScheme();
   const { onboardingCompleted, profileAvatarUri } = useFinance();
+  const { profileName } = useAuth();
+  const profileTabTitle = profileName.trim() || 'Perfil';
 
   return (
     <Tabs
@@ -71,7 +73,7 @@ function TabsLayoutInner() {
       <Tabs.Screen
         name="perfil"
         options={{
-          title: 'Perfil',
+          title: profileTabTitle,
           href: !onboardingCompleted ? null : undefined,
           tabBarIcon: ({ color, focused }) =>
             profileAvatarUri ? (

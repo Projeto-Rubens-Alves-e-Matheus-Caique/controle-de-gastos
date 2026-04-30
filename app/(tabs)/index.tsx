@@ -1,7 +1,7 @@
 import { parseMoneyInput, useFinance, type StreamingPlanTier } from '@/contexts/finance-context';
 import { Redirect, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { logout } from '@/services/authService';
 
 export default function HomeScreen() {
@@ -11,6 +11,7 @@ export default function HomeScreen() {
   const [usesStreaming, setUsesStreaming] = useState<'sim' | 'nao' | null>(null);
   const [selectedStreamingServices, setSelectedStreamingServices] = useState<string[]>([]);
   const [streamingPlanTier, setStreamingPlanTier] = useState<StreamingPlanTier | null>(null);
+  const [savingOnboarding, setSavingOnboarding] = useState(false);
 
   useEffect(() => {
     if (selectedStreamingServices.length === 0) {
@@ -54,22 +55,31 @@ export default function HomeScreen() {
   };
 
   const canConfirm =
+    !savingOnboarding &&
     usesStreaming !== null &&
     (usesStreaming === 'nao' ||
       (usesStreaming === 'sim' &&
         selectedStreamingServices.length > 0 &&
         streamingPlanTier !== null));
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!canConfirm) return;
-    setOnboarding({
-      occupation: occupation.trim(),
-      monthlyIncome: parseMoneyInput(income),
-      usesStreaming: usesStreaming === 'sim',
-      streamingServices: usesStreaming === 'sim' ? selectedStreamingServices : [],
-      streamingPlanTier: usesStreaming === 'sim' ? streamingPlanTier : null,
-    });
-    router.replace('/(tabs)/gastos');
+
+    try {
+      setSavingOnboarding(true);
+      setOnboarding({
+        occupation: occupation.trim(),
+        monthlyIncome: parseMoneyInput(income),
+        usesStreaming: usesStreaming === 'sim',
+        streamingServices: usesStreaming === 'sim' ? selectedStreamingServices : [],
+        streamingPlanTier: usesStreaming === 'sim' ? streamingPlanTier : null,
+      });
+      router.replace('/(tabs)/gastos');
+    } catch {
+      Alert.alert('Erro', 'Não foi possível salvar seu resumo financeiro. Tente novamente.');
+    } finally {
+      setSavingOnboarding(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -187,7 +197,9 @@ export default function HomeScreen() {
           style={[styles.confirmButton, !canConfirm && styles.confirmButtonDisabled]}
           onPress={handleConfirm}
           disabled={!canConfirm}>
-          <Text style={[styles.confirmButtonText, !canConfirm && styles.confirmButtonTextDisabled]}>Confirmar</Text>
+          <Text style={[styles.confirmButtonText, !canConfirm && styles.confirmButtonTextDisabled]}>
+            {savingOnboarding ? 'Salvando...' : 'Confirmar'}
+          </Text>
         </TouchableOpacity>
         {usesStreaming === null && (
           <Text style={styles.confirmHint}>Responda sobre streaming para habilitar a confirmacao.</Text>
