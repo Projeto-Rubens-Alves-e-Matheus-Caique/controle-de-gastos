@@ -110,13 +110,13 @@ export default function GraficosScreen() {
           value > 0 && maxMonthlyValue > 0
             ? Math.max((value / maxMonthlyValue) * 100, 5)
             : 0,
-        duration: 400,
+        duration: 260,
         easing: Easing.out(Easing.ease),
         useNativeDriver: false,
       });
     });
 
-    Animated.stagger(80, animations).start();
+    Animated.stagger(20, animations).start();
   }, [animatedValues, monthlyBars, maxMonthlyValue]);
 
   useEffect(() => {
@@ -128,52 +128,14 @@ export default function GraficosScreen() {
           value > 0 && maxCategoryValue > 0
             ? (value / maxCategoryValue) * 100
             : 0,
-        duration: 400,
+        duration: 260,
         easing: Easing.out(Easing.ease),
         useNativeDriver: false,
       });
     });
 
-    Animated.stagger(60, animations).start();
+    Animated.stagger(20, animations).start();
   }, [animatedCategoryValues, categoryBreakdown, maxCategoryValue]);
-
-  const animateBars = (direction: 'up' | 'down', callback?: () => void) => {
-    const animations = animatedValues.map((anim, index) => {
-      const value = monthlyBars[index]?.total ?? 0;
-      const toValue =
-        direction === 'up' && value > 0 && maxMonthlyValue > 0
-          ? Math.max((value / maxMonthlyValue) * 100, 5)
-          : 0;
-
-      return Animated.timing(anim, {
-        toValue,
-        duration: 400,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
-      });
-    });
-
-    Animated.stagger(80, animations).start(() => callback?.());
-  };
-
-  const animateCategories = (direction: 'in' | 'out', callback?: () => void) => {
-    const animations = animatedCategoryValues.map((anim, index) => {
-      const value = categoryBreakdown[index]?.value ?? 0;
-      const toValue =
-        direction === 'in' && value > 0 && maxCategoryValue > 0
-          ? (value / maxCategoryValue) * 100
-          : 0;
-
-      return Animated.timing(anim, {
-        toValue,
-        duration: 400,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
-      });
-    });
-
-    Animated.stagger(60, animations).start(() => callback?.());
-  };
 
   const handleChartScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setChartScrollX(event.nativeEvent.contentOffset.x);
@@ -288,12 +250,7 @@ export default function GraficosScreen() {
         {filters.map((item) => (
           <TouchableOpacity
             key={item.value}
-            onPress={() => {
-              animateBars('down');
-              animateCategories('out', () => {
-                setPeriod(item.value);
-              });
-            }}
+            onPress={() => setPeriod(item.value)}
             style={[
               styles.filterButton,
               period === item.value && styles.filterActive,
