@@ -1,7 +1,8 @@
-import { Link, router } from 'expo-router';
 import { Image } from 'expo-image';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Link, router } from 'expo-router';
 import { useState } from 'react';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
 import { login } from '@/services/authService';
 
 export default function LoginScreen() {
@@ -34,41 +35,44 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
+      <View style={styles.brand}>
         <Image source={require('@/assets/images/app-logo.png')} style={styles.logo} contentFit="contain" />
+        <Text style={styles.appName}>BudGet</Text>
       </View>
 
-      <Text style={styles.title}>Controle de Gastos</Text>
-      <Text style={styles.subtitle}>Entre com seu login para continuar</Text>
+      <Text style={styles.title}>Login</Text>
 
-      <View style={styles.form}>
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          value={email}
-          onChangeText={setEmail}
-          placeholder="Seu email"
-          placeholderTextColor="#6E7B75"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          style={styles.input}
-        />
+      <View style={styles.formArea}>
+        <View style={styles.goldBand} />
+        <View style={styles.form}>
+          <Text style={styles.label}>E-mail</Text>
+          <TextInput
+            value={email}
+            onChangeText={setEmail}
+            placeholder="Seu email"
+            placeholderTextColor="#6E7B75"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            style={styles.input}
+          />
 
-        <Text style={styles.label}>Senha</Text>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Sua senha"
-          placeholderTextColor="#6E7B75"
-          secureTextEntry
-          style={styles.input}
-        />
+          <Text style={styles.label}>Senha</Text>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Sua senha"
+            placeholderTextColor="#6E7B75"
+            secureTextEntry
+            style={styles.input}
+          />
 
-        <TouchableOpacity onPress={entrarNoApp} style={styles.button}>
-          <Text style={styles.buttonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity onPress={entrarNoApp} style={styles.button} activeOpacity={0.82}>
+            <Text style={styles.buttonText}>{loading ? 'Entrando...' : 'Entrar'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <Link href="/criar-conta" style={styles.createAccount}>
+      <Link href="/criar-conta" style={styles.link}>
         Criar conta
       </Link>
     </View>
@@ -78,73 +82,94 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0B2E23',
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-  },
-  logoContainer: {
     alignItems: 'center',
-    marginBottom: 18,
+    backgroundColor: '#0B2E23',
+    paddingHorizontal: 10,
+    paddingTop: 56,
+  },
+  brand: {
+    alignItems: 'center',
+    marginBottom: 76,
   },
   logo: {
-    width: 126,
-    height: 126,
-    borderRadius: 28,
+    width: 82,
+    height: 82,
+    marginBottom: 8,
+  },
+  appName: {
+    color: '#F7F8F5',
+    fontSize: 26,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   title: {
     color: '#F7F8F5',
+    fontSize: 18,
+    marginBottom: 16,
     textAlign: 'center',
-    fontSize: 28,
-    fontWeight: '700',
-    marginBottom: 6,
   },
-  subtitle: {
-    color: '#CCD7D2',
-    textAlign: 'center',
-    marginBottom: 26,
-    fontSize: 14,
+  formArea: {
+    width: '108%',
+    maxWidth: 420,
+    alignItems: 'center',
+    position: 'relative',
+    marginLeft: -30,
+  },
+  goldBand: {
+    position: 'absolute',
+    top: -10,
+    left: -26,
+    right: 18,
+    height: 22,
+    backgroundColor: '#C8A348',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
   },
   form: {
-    backgroundColor: '#F3F5EF',
-    borderRadius: 18,
-    padding: 18,
+    width: '100%',
+    backgroundColor: '#F5F5F3',
+    borderColor: '#E0E0DE',
+    borderTopRightRadius: 14,
+    borderBottomRightRadius: 14,
     borderWidth: 1,
-    borderColor: '#C8AA56',
+    paddingLeft: 28,
+    paddingRight: 10,
+    paddingTop: 14,
+    paddingBottom: 10,
   },
   label: {
-    color: '#184335',
+    color: '#143429',
     fontSize: 13,
-    fontWeight: '700',
-    marginBottom: 6,
-    marginTop: 4,
+    marginBottom: 3,
   },
   input: {
+    height: 36,
     backgroundColor: '#FFFFFF',
-    borderColor: '#D9DED9',
+    borderColor: '#D4D4D4',
+    borderRadius: 5,
     borderWidth: 1,
-    borderRadius: 12,
     color: '#0D2C22',
-    paddingHorizontal: 12,
-    paddingVertical: 11,
     marginBottom: 8,
+    paddingHorizontal: 10,
   },
   button: {
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#C8A348',
+    borderRadius: 6,
     marginTop: 10,
-    backgroundColor: '#C8AA56',
-    paddingVertical: 13,
-    borderRadius: 12,
   },
   buttonText: {
     color: '#0B2E23',
-    textAlign: 'center',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
+    textAlign: 'center',
   },
-  createAccount: {
+  link: {
+    color: '#CDB35D',
+    fontSize: 14,
     marginTop: 18,
     textAlign: 'center',
-    color: '#E8D39D',
-    fontSize: 15,
-    fontWeight: '600',
   },
 });
