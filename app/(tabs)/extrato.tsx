@@ -33,7 +33,7 @@ type MonthlyGroup = {
 };
 
 export default function ExtratoScreen() {
-  const { onboardingCompleted, expenses, paymentRecords } = useFinance();
+  const { onboardingCompleted, onboardingLoading, expenses, paymentRecords } = useFinance();
   const [expandedMonthKey, setExpandedMonthKey] = useState<string | null>(null);
 
   const monthlyStatement = useMemo<MonthlyGroup[]>(() => {
@@ -103,6 +103,10 @@ export default function ExtratoScreen() {
         : monthlyStatement[0].key,
     );
   }, [monthlyStatement]);
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

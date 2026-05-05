@@ -4,12 +4,16 @@ import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function GastosScreen() {
-  const { addExpense, onboardingCompleted, freeToSpend } = useFinance();
+  const { addExpense, onboardingCompleted, onboardingLoading, freeToSpend } = useFinance();
   const [description, setDescription] = useState('');
   const [amountRaw, setAmountRaw] = useState('');
   const [category, setCategory] = useState('');
   const [showCategoryOptions, setShowCategoryOptions] = useState(false);
   const categoryOptions = ['Alimentacao', 'Conta de luz', 'Conta de agua', 'Streaming', 'Games'];
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

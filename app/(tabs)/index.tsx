@@ -5,7 +5,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpa
 import { logout } from '@/services/authService';
 
 export default function HomeScreen() {
-  const { setOnboarding, onboardingCompleted } = useFinance();
+  const { setOnboarding, onboardingCompleted, onboardingLoading } = useFinance();
   const [occupation, setOccupation] = useState('');
   const [income, setIncome] = useState('');
   const [usesStreaming, setUsesStreaming] = useState<'sim' | 'nao' | null>(null);
@@ -18,6 +18,10 @@ export default function HomeScreen() {
       setStreamingPlanTier(null);
     }
   }, [selectedStreamingServices.length]);
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (onboardingCompleted) {
     return <Redirect href="/(tabs)/gastos" />;
@@ -73,7 +77,7 @@ export default function HomeScreen() {
 
     try {
       setSavingOnboarding(true);
-      setOnboarding({
+      await setOnboarding({
         occupation: occupation.trim(),
         monthlyIncome: parsedIncome,
         usesStreaming: usesStreaming === 'sim',

@@ -3,7 +3,11 @@ import { Redirect } from 'expo-router';
 
 /** Rota legada: nao aparece na barra de abas; redireciona para o fluxo principal. */
 export default function ExploreRedirectScreen() {
-  const { onboardingCompleted } = useFinance();
+  const { onboardingCompleted, onboardingLoading } = useFinance();
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

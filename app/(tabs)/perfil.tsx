@@ -48,6 +48,7 @@ function pickImageFromWebFileInput(onPicked: (uri: string) => void) {
 export default function PerfilScreen() {
   const { profileName } = useAuth();
   const {
+    onboardingLoading,
     onboardingCompleted,
     profileAvatarUri,
     setProfileAvatarUri,
@@ -111,9 +112,11 @@ export default function PerfilScreen() {
     })();
   }, [setProfileAvatarUri]);
 
-  const handleSave = () => {
-    setCtxOccupation(occupation.trim());
-    setMonthlyIncome(parseMoneyInput(salary));
+  const handleSave = async () => {
+    await Promise.all([
+      setCtxOccupation(occupation.trim()),
+      setMonthlyIncome(parseMoneyInput(salary)),
+    ]);
     Alert.alert('Salvo', 'Profissao e salario atualizados.');
   };
 
@@ -121,6 +124,10 @@ export default function PerfilScreen() {
     await logout();
     router.replace('/login');
   };
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

@@ -17,6 +17,7 @@ const formatCurrency = (value: number) =>
 export default function GraficosScreen() {
   const {
     onboardingCompleted,
+    onboardingLoading,
     monthlyIncome,
     currentMonthIncome,
     paymentAdjustment,
@@ -141,6 +142,10 @@ export default function GraficosScreen() {
 
     Animated.stagger(60, animations).start(() => callback?.());
   };
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

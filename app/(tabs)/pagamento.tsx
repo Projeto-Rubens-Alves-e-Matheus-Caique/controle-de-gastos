@@ -9,6 +9,7 @@ const formatCurrency = (value: number) =>
 export default function PagamentoScreen() {
   const {
     onboardingCompleted,
+    onboardingLoading,
     monthlyIncome,
     activeMonthLabel,
     confirmPayment,
@@ -64,6 +65,10 @@ export default function PagamentoScreen() {
     setAdjustmentValue('');
     Alert.alert('Pagamento confirmado', 'Saldo reiniciado para o proximo mes.');
   };
+
+  if (onboardingLoading) {
+    return null;
+  }
 
   if (!onboardingCompleted) {
     return <Redirect href="/(tabs)" />;

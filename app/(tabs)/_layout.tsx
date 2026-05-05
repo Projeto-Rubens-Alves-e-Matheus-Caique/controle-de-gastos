@@ -11,9 +11,11 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 
 function TabsLayoutInner() {
   const colorScheme = useColorScheme();
-  const { onboardingCompleted, profileAvatarUri } = useFinance();
+  const { onboardingCompleted, onboardingLoading, profileAvatarUri } = useFinance();
   const { profileName } = useAuth();
   const profileTabTitle = profileName.trim() || 'Perfil';
+
+  if (onboardingLoading) return null;
 
   return (
     <Tabs

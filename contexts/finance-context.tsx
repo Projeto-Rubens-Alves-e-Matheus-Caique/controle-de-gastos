@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { listarGastos } from '@/services/gastosServices';
 import { adicionarGasto } from '@/services/gastosServices';
 import { adicionarPagamento, listarPagamentos } from '@/services/pagamentosServices';
+import { buscarPerfilFinanceiro, salvarPerfilFinanceiro } from '@/services/perfilFinanceiroService';
+import { useAuth } from '@/contexts/auth-context';
 import { Timestamp } from 'firebase/firestore';
 
 export type StreamingPlanTier = 'barato' | 'medio' | 'caro';
@@ -142,9 +144,10 @@ type OnboardingPayload = {
 };
 
 type FinanceContextValue = {
+  onboardingLoading: boolean;
   onboardingCompleted: boolean;
   profileAvatarUri: string | null;
-  setProfileAvatarUri: (uri: string | null) => void;
+  setProfileAvatarUri: (uri: string | null) => Promise<void>;
   occupation: string;
   monthlyIncome: number;
   currentMonthIncome: number;
@@ -157,9 +160,9 @@ type FinanceContextValue = {
   streamingPlanTier: StreamingPlanTier | null;
   streamingEstimatedMonthly: number;
   expenses: Expense[];
-  setOnboarding: (data: OnboardingPayload) => void;
-  setMonthlyIncome: (value: number) => void;
-  setOccupation: (value: string) => void;
+  setOnboarding: (data: OnboardingPayload) => Promise<void>;
+  setMonthlyIncome: (value: number) => Promise<void>;
+  setOccupation: (value: string) => Promise<void>;
   setPaymentAdjustment: (input: { status: PaymentStatus; amount?: number }) => void;
   confirmPayment: (input: { status: PaymentStatus; amount?: number }) => Promise<boolean>;
   addExpense: (input: { amount: number; category: string; description: string }) => void;
@@ -185,8 +188,10 @@ const CATEGORY_COLORS = [
 const FinanceContext = createContext<FinanceContextValue | null>(null);
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [onboardingLoading, setOnboardingLoading] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
-  const [profileAvatarUri, setProfileAvatarUri] = useState<string | null>(null);
+  const [profileAvatarUri, setProfileAvatarUriState] = useState<string | null>(null);
   const [occupation, setOccupation] = useState('');
   const [monthlyIncome, setMonthlyIncome] = useState(0);
   const [activeMonthStart, setActiveMonthStart] = useState(() => {
@@ -202,34 +207,119 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [period, setPeriod] = useState<Period>('30d');
 
   useEffect(() => {
-    const carregar = async () => {
-      const [gastos, pagamentos] = await Promise.all([listarGastos(), listarPagamentos()]);
-      setExpenses(gastos as Expense[]);
-      setPaymentRecords(pagamentos);
+    if (!user) {
+      setOnboardingLoading(false);
+      return;
+    }
 
-      const latestPayment = [...pagamentos].sort((a, b) => b.monthKey.localeCompare(a.monthKey))[0];
-      if (latestPayment) {
-        const now = new Date();
-        const currentRealMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const nextOpenMonth = getNextMonthStart(getMonthStartFromKey(latestPayment.monthKey));
-        setActiveMonthStart(nextOpenMonth > currentRealMonth ? nextOpenMonth : currentRealMonth);
+    let isMounted = true;
+
+    const carregar = async () => {
+      try {
+        setOnboardingLoading(true);
+        const [perfil, gastos, pagamentos] = await Promise.all([
+          buscarPerfilFinanceiro(),
+          listarGastos(),
+          listarPagamentos(),
+        ]);
+
+        if (!isMounted) return;
+
+        if (perfil) {
+          setProfileAvatarUriState(perfil.profileAvatarUri);
+          setOccupation(perfil.occupation);
+          setMonthlyIncome(perfil.monthlyIncome);
+          setUsesStreaming(perfil.usesStreaming);
+          setStreamingServices(perfil.streamingServices);
+          setStreamingPlanTier(perfil.streamingPlanTier);
+          setOnboardingCompleted(perfil.onboardingCompleted);
+        } else {
+          setProfileAvatarUriState(null);
+          setOccupation('');
+          setMonthlyIncome(0);
+          setUsesStreaming(false);
+          setStreamingServices([]);
+          setStreamingPlanTier(null);
+          setOnboardingCompleted(false);
+        }
+
+        setExpenses(gastos as Expense[]);
+        setPaymentRecords(pagamentos);
+
+        const latestPayment = [...pagamentos].sort((a, b) => b.monthKey.localeCompare(a.monthKey))[0];
+        if (latestPayment) {
+          const now = new Date();
+          const currentRealMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          const nextOpenMonth = getNextMonthStart(getMonthStartFromKey(latestPayment.monthKey));
+          setActiveMonthStart(nextOpenMonth > currentRealMonth ? nextOpenMonth : currentRealMonth);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados financeiros:', error);
+      } finally {
+        if (isMounted) {
+          setOnboardingLoading(false);
+        }
       }
     };
 
     carregar();
-  }, []);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const streamingEstimatedMonthly = useMemo(
     () => (usesStreaming ? estimateStreamingMonthly(streamingServices, streamingPlanTier) : 0),
     [usesStreaming, streamingServices, streamingPlanTier]
   );
 
-  const setOnboarding = useCallback((data: OnboardingPayload) => {
-    setOccupation(data.occupation);
-    setMonthlyIncome(data.monthlyIncome);
-    setUsesStreaming(data.usesStreaming);
-    setStreamingServices(data.streamingServices);
-    setStreamingPlanTier(data.streamingPlanTier);
+  const setProfileAvatarUri = useCallback(async (uri: string | null) => {
+    setProfileAvatarUriState(uri);
+    try {
+      await salvarPerfilFinanceiro({ profileAvatarUri: uri });
+    } catch (error) {
+      console.error('Erro ao salvar foto do perfil:', error);
+    }
+  }, []);
+
+  const updateOccupation = useCallback(async (value: string) => {
+    const trimmedValue = value.trim();
+    setOccupation(trimmedValue);
+    try {
+      await salvarPerfilFinanceiro({ occupation: trimmedValue });
+    } catch (error) {
+      console.error('Erro ao salvar profissao:', error);
+    }
+  }, []);
+
+  const updateMonthlyIncome = useCallback(async (value: number) => {
+    const normalizedValue = Math.max(Math.round(value * 100) / 100, 0);
+    setMonthlyIncome(normalizedValue);
+    try {
+      await salvarPerfilFinanceiro({ monthlyIncome: normalizedValue });
+    } catch (error) {
+      console.error('Erro ao salvar salario:', error);
+    }
+  }, []);
+
+  const setOnboarding = useCallback(async (data: OnboardingPayload) => {
+    const payload = {
+      onboardingCompleted: true,
+      occupation: data.occupation.trim(),
+      monthlyIncome: Math.max(Math.round(data.monthlyIncome * 100) / 100, 0),
+      usesStreaming: data.usesStreaming,
+      streamingServices: data.streamingServices,
+      streamingPlanTier: data.streamingPlanTier,
+    };
+
+    await salvarPerfilFinanceiro(payload);
+
+    setOccupation(payload.occupation);
+    setMonthlyIncome(payload.monthlyIncome);
+    setUsesStreaming(payload.usesStreaming);
+    setStreamingServices(payload.streamingServices);
+    setStreamingPlanTier(payload.streamingPlanTier);
     setOnboardingCompleted(true);
   }, []);
 
@@ -492,6 +582,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [activeMonthExpenses, activeMonthStart, currentMonthIncome, filteredExpenses, period, streamingEstimatedMonthly]);
 
   const value: FinanceContextValue = {
+    onboardingLoading,
     onboardingCompleted,
     profileAvatarUri,
     setProfileAvatarUri,
@@ -508,8 +599,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     streamingEstimatedMonthly,
     expenses,
     setOnboarding,
-    setMonthlyIncome,
-    setOccupation,
+    setMonthlyIncome: updateMonthlyIncome,
+    setOccupation: updateOccupation,
     setPaymentAdjustment,
     confirmPayment,
     addExpense,
