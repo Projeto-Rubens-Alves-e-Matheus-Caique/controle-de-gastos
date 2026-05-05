@@ -1,6 +1,9 @@
 import { Period, useFinance } from '@/contexts/finance-context';
+import { MaterialIcons } from '@expo/vector-icons';
 import { Redirect } from 'expo-router';
 import {
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,7 +12,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -20,6 +23,7 @@ export default function GraficosScreen() {
     onboardingLoading,
     monthlyIncome,
     currentMonthIncome,
+    activeMonthLabel,
     paymentAdjustment,
     categoryBreakdown,
     totalSpent,
@@ -30,6 +34,9 @@ export default function GraficosScreen() {
     period,
     setPeriod,
   } = useFinance();
+  const [chartScrollX, setChartScrollX] = useState(0);
+  const [chartViewportWidth, setChartViewportWidth] = useState(0);
+  const [chartContentWidth, setChartContentWidth] = useState(0);
 
   const freeToSpendRatio = currentMonthIncome > 0 ? freeToSpend / currentMonthIncome : 0;
   const freeToSpendColor =
@@ -47,6 +54,31 @@ export default function GraficosScreen() {
     { label: '30D', value: '30d' },
     { label: '6M', value: '180d' },
     { label: '1A', value: '365d' },
+  ];
+
+  const spentRatio = currentMonthIncome > 0 ? totalSpent / currentMonthIncome : 0;
+  const spentPercent = Math.round(spentRatio * 100);
+  const progressWidth = `${Math.min(spentRatio, 1) * 100}%`;
+  const progressColor = spentRatio >= 0.85 ? '#C62828' : spentRatio >= 0.6 ? '#B28704' : '#0B2E23';
+  const hasEvolutionData = monthlyBars.some((item) => item.total > 0);
+  const canScrollChart = chartContentWidth > chartViewportWidth + 4;
+  const showLeftIndicator = canScrollChart && chartScrollX > 8;
+  const showRightIndicator =
+    canScrollChart && chartScrollX < chartContentWidth - chartViewportWidth - 8;
+  const topCategory = categoryBreakdown[0];
+  const topPeriod = [...monthlyBars].sort((a, b) => b.total - a.total)[0];
+  const periodRangeLabel =
+    monthlyBars.length > 0
+      ? `Mostrando ${monthlyBars[0].label} ate ${monthlyBars[monthlyBars.length - 1].label}`
+      : 'Nenhum periodo carregado';
+  const insightItems = [
+    topCategory ? `Categoria que mais pesa: ${topCategory.name}` : 'Sem categoria dominante ainda',
+    topPeriod && topPeriod.total > 0
+      ? `Maior gasto no periodo: ${topPeriod.label} (${formatCurrency(topPeriod.total)})`
+      : 'Nenhum gasto registrado no periodo selecionado',
+    currentMonthIncome > 0
+      ? `Voce gastou ${spentPercent}% do salario deste mes`
+      : 'Informe um salario para comparar seus gastos',
   ];
 
   const maxCategoryValue =
@@ -143,6 +175,10 @@ export default function GraficosScreen() {
     Animated.stagger(60, animations).start(() => callback?.());
   };
 
+  const handleChartScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    setChartScrollX(event.nativeEvent.contentOffset.x);
+  };
+
   if (onboardingLoading) {
     return null;
   }
@@ -154,18 +190,26 @@ export default function GraficosScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container} style={styles.scroll}>
       <Text style={styles.title}>Graficos de Gastos</Text>
-      <Text style={styles.subtitle}>
-        Veja onde vai o dinheiro e quanto sobra do seu salario.
-      </Text>
+      <Text style={styles.subtitle}>Resumo do mes atual: {activeMonthLabel}.</Text>
 
       <View style={[styles.card, styles.highlightCard]}>
-        <Text style={styles.cardTitle}>Saldo livre para gastar</Text>
+        <Text style={styles.cardTitle}>Saldo livre de {activeMonthLabel}</Text>
         {freeToSpend < 0 && (
           <Text style={styles.negativeAlert}>Voce nao possui saldo para gastar!!!</Text>
         )}
         <Text style={[styles.freeValue, { color: freeToSpendColor }]}>{formatCurrency(freeToSpend)}</Text>
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Salario do mes atual</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(currentMonthIncome)}</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Total gasto</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(totalSpent)}</Text>
+          </View>
+        </View>
         <Text style={styles.metaLine}>
-          Salario deste mes: {formatCurrency(currentMonthIncome)} · Gasto total: {formatCurrency(totalSpent)}
+          Valores calculados para {activeMonthLabel}.
         </Text>
 
         {paymentAdjustment && paymentAdjustment.status !== 'correto' && (
@@ -182,10 +226,23 @@ export default function GraficosScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Distribuicao de gastos</Text>
+        <View style={styles.cardHeaderLine}>
+          <Text style={styles.cardTitle}>Uso do salario</Text>
+          <Text style={[styles.percentBadge, { color: progressColor }]}>{spentPercent}%</Text>
+        </View>
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: progressWidth, backgroundColor: progressColor }]} />
+        </View>
+        <Text style={styles.metaLine}>
+          Quanto mais perto de 100%, menor e a margem para novos gastos neste mes.
+        </Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Distribuicao dos gastos de {activeMonthLabel}</Text>
 
         {categoryBreakdown.length === 0 ? (
-          <Text style={styles.emptyText}>Sem dados ainda.</Text>
+          <Text style={styles.emptyText}>Nenhum gasto registrado neste mes ainda.</Text>
         ) : (
           <>
             <Text style={styles.totalValue}>{formatCurrency(totalSpent)}</Text>
@@ -253,35 +310,79 @@ export default function GraficosScreen() {
         <Text style={styles.cardTitle}>
           Evolucao ({periodLabelMap[period]})
         </Text>
+        <Text style={styles.metaLine}>{periodRangeLabel}</Text>
 
-        <View style={styles.monthlyChart}>
-          {monthlyBars.map((item, index) => {
-            const anim = animatedValues[index];
+        {!hasEvolutionData ? (
+          <Text style={styles.emptyText}>Nenhum gasto registrado nesse periodo ainda.</Text>
+        ) : (
+          <View style={styles.chartScrollWrap}>
+            {showLeftIndicator && (
+              <View style={[styles.scrollIndicator, styles.scrollIndicatorLeft]}>
+                <MaterialIcons name="keyboard-arrow-left" size={18} color="#FFFFFF" />
+              </View>
+            )}
+            {showRightIndicator && (
+              <View style={[styles.scrollIndicator, styles.scrollIndicatorRight]}>
+                <MaterialIcons name="keyboard-arrow-right" size={18} color="#FFFFFF" />
+              </View>
+            )}
+            <ScrollView
+              horizontal
+              onContentSizeChange={(width) => setChartContentWidth(width)}
+              onLayout={(event) => setChartViewportWidth(event.nativeEvent.layout.width)}
+              onScroll={handleChartScroll}
+              scrollEventThrottle={16}
+              showsHorizontalScrollIndicator={false}>
+              <View style={styles.monthlyChart}>
+                {monthlyBars.map((item, index) => {
+                  const anim = animatedValues[index];
+
+                  return (
+                    <View key={item.key} style={styles.barColumn}>
+                      <Text style={styles.barValue}>
+                        {item.total > 0 ? formatCurrency(item.total) : ''}
+                      </Text>
+
+                      <View style={styles.barTrack}>
+                        {anim && (
+                          <Animated.View
+                          style={[
+                            styles.barFill,
+                            {
+                              height: anim.interpolate({
+                                  inputRange: [0, 100],
+                                  outputRange: ['0%', '100%'],
+                                }),
+                              },
+                            ]}
+                          />
+                        )}
+                      </View>
+
+                      <Text style={styles.barLabel}>{item.label}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+            {canScrollChart && <Text style={styles.scrollHint}>Deslize para ver mais</Text>}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Insights do mes</Text>
+        <View style={styles.insightList}>
+          {insightItems.map((item) => {
+            const [label, ...resultParts] = item.split(': ');
+            const result = resultParts.join(': ');
 
             return (
-              <View key={item.key} style={styles.barColumn}>
-                <Text style={styles.barValue}>
-                  {item.total > 0 ? formatCurrency(item.total) : '-'}
-                </Text>
-
-                <View style={styles.barTrack}>
-                  {anim && (
-                    <Animated.View
-                      style={[
-                        styles.barFill,
-                        {
-                          height: anim.interpolate({
-                            inputRange: [0, 100],
-                            outputRange: ['0%', '100%'],
-                          }),
-                        },
-                      ]}
-                    />
-                  )}
-                </View>
-
-                <Text style={styles.barLabel}>{item.label}</Text>
-              </View>
+              <Text key={item} style={styles.insightText}>
+                <Text style={styles.insightStrong}>{label}</Text>
+                {result ? ': ' : ''}
+                {result ? <Text style={styles.insightStrong}>{result}</Text> : null}
+              </Text>
             );
           })}
         </View>
@@ -292,23 +393,67 @@ export default function GraficosScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: '#F6F7F3' },
-  container: { padding: 20, backgroundColor: '#F6F7F3', gap: 14 },
-  title: { fontSize: 28, fontWeight: '700' },
-  subtitle: { fontSize: 14 },
-  card: { backgroundColor: '#FFF', borderRadius: 18, padding: 16 },
-  highlightCard: {},
-  cardTitle: { fontWeight: '700' },
+  container: { padding: 20, paddingBottom: 34, backgroundColor: '#F6F7F3', gap: 14 },
+  title: { color: '#0B2E23', fontSize: 28, fontWeight: '700' },
+  subtitle: { color: '#40534D', fontSize: 14 },
+  card: {
+    backgroundColor: '#FFF',
+    borderColor: '#E4E9E6',
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 16,
+  },
+  highlightCard: { borderColor: '#C8AA56' },
+  cardHeaderLine: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardTitle: { color: '#0B2E23', fontSize: 15, fontWeight: '700' },
   negativeAlert: { color: '#C62828', fontSize: 12, fontWeight: '700', marginTop: 6 },
-  freeValue: { fontSize: 28, fontWeight: '700' },
-  metaLine: {},
-  streamingNote: {},
-  emptyText: {},
-  totalValue: { fontSize: 24, fontWeight: '700' },
-  categoryList: { gap: 10 },
+  freeValue: { fontSize: 30, fontWeight: '700', marginTop: 8 },
+  summaryGrid: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  summaryItem: {
+    backgroundColor: '#F6F7F3',
+    borderRadius: 12,
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  summaryLabel: { color: '#66746F', fontSize: 11, fontWeight: '600' },
+  summaryValue: { color: '#123B2F', fontSize: 13, fontWeight: '700', marginTop: 3 },
+  percentBadge: { fontSize: 18, fontWeight: '700' },
+  progressTrack: {
+    backgroundColor: '#EEF3F0',
+    borderRadius: 999,
+    height: 12,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    borderRadius: 999,
+    height: '100%',
+  },
+  metaLine: { color: '#64756F', fontSize: 12, lineHeight: 17, marginTop: 8 },
+  streamingNote: { color: '#64756F', fontSize: 12, marginTop: 6 },
+  emptyText: {
+    backgroundColor: '#F6F7F3',
+    borderRadius: 12,
+    color: '#64756F',
+    fontSize: 13,
+    marginTop: 12,
+    padding: 12,
+  },
+  totalValue: { color: '#123B2F', fontSize: 24, fontWeight: '700', marginTop: 8 },
+  categoryList: { gap: 12, marginTop: 14 },
   categoryRow: {},
-  categoryTopLine: { flexDirection: 'row', justifyContent: 'space-between' },
-  categoryName: {},
-  categoryValue: {},
+  categoryTopLine: { flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
+  categoryName: { color: '#1E332D', flex: 1, fontSize: 13, fontWeight: '600' },
+  categoryValue: { color: '#1E332D', fontSize: 13, fontWeight: '700' },
   track: {
     height: 8,
     backgroundColor: '#EEF3F0',
@@ -316,16 +461,41 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   fill: { height: '100%', borderRadius: 999 },
+  chartScrollWrap: {
+    marginTop: 14,
+    position: 'relative',
+  },
+  scrollHint: {
+    alignSelf: 'center',
+    color: '#64756F',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  scrollIndicator: {
+    alignItems: 'center',
+    backgroundColor: '#0B2E23',
+    borderRadius: 11,
+    height: 22,
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 66,
+    width: 22,
+    zIndex: 2,
+  },
+  scrollIndicatorLeft: {
+    left: -24,
+  },
+  scrollIndicatorRight: {
+    right: -24,
+  },
   monthlyChart: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 6,
-    marginTop: 14,
+    gap: 8,
   },
-  barColumn: { flex: 1, alignItems: 'center' },
+  barColumn: { alignItems: 'center', width: 42 },
   barTrack: {
-    width: '100%',
-    maxWidth: 40,
+    width: 34,
     height: 120,
     borderRadius: 10,
     backgroundColor: '#EEF3F0',
@@ -337,10 +507,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B2E23',
     borderRadius: 10,
   },
-  barValue: { fontSize: 10 },
-  barLabel: { fontSize: 10 },
+  barValue: { color: '#40534D', fontSize: 9, minHeight: 16, textAlign: 'center' },
+  barLabel: { color: '#1E332D', fontSize: 10, marginTop: 5 },
   filters: { flexDirection: 'row', gap: 8 },
-  filterButton: { padding: 8, backgroundColor: '#EEF3F0', borderRadius: 8 },
+  filterButton: { paddingHorizontal: 11, paddingVertical: 9, backgroundColor: '#EEF3F0', borderRadius: 8 },
   filterActive: { backgroundColor: '#0B2E23' },
   filterTextActive: { color: '#fff' },
+  insightList: { gap: 8, marginTop: 12 },
+  insightText: {
+    backgroundColor: '#F7EFCF',
+    borderColor: '#C8AA56',
+    borderRadius: 10,
+    borderWidth: 1,
+    color: '#0B2E23',
+    fontSize: 13,
+    fontWeight: '700',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
 });
