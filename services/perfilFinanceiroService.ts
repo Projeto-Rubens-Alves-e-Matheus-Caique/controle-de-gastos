@@ -83,6 +83,11 @@ export const salvarFotoPerfil = async (uri: string): Promise<string> => {
     return uri;
   }
 
+  if (uri.startsWith('data:image/')) {
+    await salvarPerfilFinanceiro({ profileAvatarUri: uri });
+    return uri;
+  }
+
   const response = await fetch(uri);
   const blob = await response.blob();
   const avatarRef = ref(storage, `users/${user.uid}/profile/avatar-${Date.now()}.jpg`);

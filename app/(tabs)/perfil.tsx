@@ -17,6 +17,61 @@ import {
 } from 'react-native';
 
 const DEFAULT_AVATAR = 'https://i.pravatar.cc/220?img=12';
+const PROFILE_AVATAR_SIZE = 320;
+
+function resizeWebImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const image = new window.Image();
+
+      image.onerror = reject;
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          reject(new Error('Canvas indisponivel'));
+          return;
+        }
+
+        const side = Math.min(image.width, image.height);
+        const sourceX = (image.width - side) / 2;
+        const sourceY = (image.height - side) / 2;
+
+        canvas.width = PROFILE_AVATAR_SIZE;
+        canvas.height = PROFILE_AVATAR_SIZE;
+        context.drawImage(
+          image,
+          sourceX,
+          sourceY,
+          side,
+          side,
+          0,
+          0,
+          PROFILE_AVATAR_SIZE,
+          PROFILE_AVATAR_SIZE,
+        );
+
+        resolve(canvas.toDataURL('image/jpeg', 0.76));
+      };
+
+      image.src = String(reader.result);
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function getAssetPersistableUri(asset: ImagePicker.ImagePickerAsset): string | null {
+  if (asset.base64) {
+    return `data:${asset.mimeType ?? 'image/jpeg'};base64,${asset.base64}`;
+  }
+
+  return asset.uri ?? null;
+}
 
 /** Na web o expo-image-picker usa dispatchEvent no input; navegadores exigem input.click() no gesto do usuario. */
 function pickImageFromWebFileInput(onPicked: (uri: string) => void) {
@@ -35,7 +90,12 @@ function pickImageFromWebFileInput(onPicked: (uri: string) => void) {
   const onChange = () => {
     const file = input.files?.[0];
     if (file) {
-      onPicked(URL.createObjectURL(file));
+      void resizeWebImageFile(file)
+        .then(onPicked)
+        .catch((error) => {
+          console.error('Erro ao preparar foto do perfil:', error);
+          Alert.alert('Erro', 'Nao foi possivel preparar a foto escolhida.');
+        });
     }
     cleanup();
   };
@@ -86,10 +146,15 @@ export default function PerfilScreen() {
         mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.88,
+        quality: 0.5,
+        base64: true,
       });
-      if (!result.canceled && result.assets[0]?.uri) {
-        setProfileAvatarUri(result.assets[0].uri);
+      if (!result.canceled) {
+        const uri = getAssetPersistableUri(result.assets[0]);
+
+        if (uri) {
+          setProfileAvatarUri(uri);
+        }
       }
     })();
   }, [setProfileAvatarUri]);
@@ -104,10 +169,15 @@ export default function PerfilScreen() {
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.88,
+        quality: 0.5,
+        base64: true,
       });
-      if (!result.canceled && result.assets[0]?.uri) {
-        setProfileAvatarUri(result.assets[0].uri);
+      if (!result.canceled) {
+        const uri = getAssetPersistableUri(result.assets[0]);
+
+        if (uri) {
+          setProfileAvatarUri(uri);
+        }
       }
     })();
   }, [setProfileAvatarUri]);
