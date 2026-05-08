@@ -1,5 +1,6 @@
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from './firebaseConfig';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { auth, db, storage } from './firebaseConfig';
 
 export type StreamingPlanTier = 'barato' | 'medio' | 'caro';
 
@@ -28,10 +29,14 @@ function getPerfilRef() {
 function normalizePerfil(data: any): PerfilFinanceiro {
   const occupation = typeof data.occupation === 'string' ? data.occupation : '';
   const monthlyIncome = typeof data.monthlyIncome === 'number' ? data.monthlyIncome : 0;
+  const profileAvatarUri =
+    typeof data.profileAvatarUri === 'string' && !data.profileAvatarUri.startsWith('blob:')
+      ? data.profileAvatarUri
+      : null;
 
   return {
     onboardingCompleted: Boolean(data.onboardingCompleted || (occupation.trim() && monthlyIncome > 0)),
-    profileAvatarUri: typeof data.profileAvatarUri === 'string' ? data.profileAvatarUri : null,
+    profileAvatarUri,
     occupation,
     monthlyIncome,
     usesStreaming: Boolean(data.usesStreaming),
@@ -64,4 +69,30 @@ export const salvarPerfilFinanceiro = async (perfil: PerfilFinanceiroInput) => {
     },
     { merge: true },
   );
+};
+
+export const salvarFotoPerfil = async (uri: string): Promise<string> => {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('Usuario nao autenticado');
+  }
+
+  if (uri.startsWith('http://') || uri.startsWith('https://')) {
+    await salvarPerfilFinanceiro({ profileAvatarUri: uri });
+    return uri;
+  }
+
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  const avatarRef = ref(storage, `users/${user.uid}/profile/avatar-${Date.now()}.jpg`);
+
+  await uploadBytes(avatarRef, blob, {
+    contentType: blob.type || 'image/jpeg',
+  });
+
+  const downloadUrl = await getDownloadURL(avatarRef);
+  await salvarPerfilFinanceiro({ profileAvatarUri: downloadUrl });
+
+  return downloadUrl;
 };

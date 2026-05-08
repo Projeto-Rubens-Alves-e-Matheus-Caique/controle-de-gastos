@@ -142,6 +142,12 @@ export default function PerfilScreen() {
 
       <View style={styles.card}>
         <Image source={{ uri: displayUri }} style={styles.avatar} />
+        <View style={styles.brandFrame}>
+          <View style={styles.brandGoldBand} />
+          <View style={styles.brandBadge}>
+            <Text style={styles.brandText}>Budget</Text>
+          </View>
+        </View>
         <Text style={styles.name}>{name}</Text>
 
         <View style={styles.photoRow}>
@@ -218,6 +224,41 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 2,
     borderColor: '#C8AA56',
+  },
+  brandFrame: {
+    width: '78%',
+    maxWidth: 260,
+    alignItems: 'center',
+    marginTop: 14,
+    position: 'relative',
+  },
+  brandGoldBand: {
+    position: 'absolute',
+    top: -6,
+    left: 10,
+    right: 10,
+    height: 17,
+    backgroundColor: '#C8A348',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  brandBadge: {
+    width: '100%',
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#C8A348',
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+  },
+  brandText: {
+    color: '#0B2E23',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   name: {
     marginTop: 8,
