@@ -9,7 +9,7 @@ export default function GastosScreen() {
   const [amountRaw, setAmountRaw] = useState('');
   const [category, setCategory] = useState('');
   const [showCategoryOptions, setShowCategoryOptions] = useState(false);
-  const categoryOptions = ['Alimentacao', 'Conta de luz', 'Conta de agua', 'Streaming', 'Games'];
+  const categoryOptions = ['Alimentacao', 'Conta de luz', 'Conta de agua', 'Streaming', 'Games', 'Veiculos'];
 
   if (onboardingLoading) {
     return null;
@@ -65,7 +65,7 @@ export default function GastosScreen() {
         <TextInput
           value={description}
           onChangeText={setDescription}
-          placeholder="Ex: Supermercado, conta de luz..."
+          placeholder="Ex: Supermercado, gasolina, conta de luz..."
           placeholderTextColor="#70807A"
           style={styles.input}
         />

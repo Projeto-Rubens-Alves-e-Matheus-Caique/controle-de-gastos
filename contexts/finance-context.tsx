@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { listarGastos } from '@/services/gastosServices';
 import { adicionarGasto } from '@/services/gastosServices';
 import { adicionarPagamento, listarPagamentos } from '@/services/pagamentosServices';
-import { buscarPerfilFinanceiro, salvarPerfilFinanceiro } from '@/services/perfilFinanceiroService';
+import { buscarPerfilFinanceiro, salvarFotoPerfil, salvarPerfilFinanceiro } from '@/services/perfilFinanceiroService';
 import { useAuth } from '@/contexts/auth-context';
 import { Timestamp } from 'firebase/firestore';
 
@@ -275,9 +275,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   );
 
   const setProfileAvatarUri = useCallback(async (uri: string | null) => {
-    setProfileAvatarUriState(uri);
     try {
-      await salvarPerfilFinanceiro({ profileAvatarUri: uri });
+      if (!uri) {
+        setProfileAvatarUriState(null);
+        await salvarPerfilFinanceiro({ profileAvatarUri: null });
+        return;
+      }
+
+      const savedUri = await salvarFotoPerfil(uri);
+      setProfileAvatarUriState(savedUri);
     } catch (error) {
       console.error('Erro ao salvar foto do perfil:', error);
     }
