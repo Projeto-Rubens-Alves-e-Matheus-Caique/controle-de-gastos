@@ -12,7 +12,7 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
@@ -37,6 +37,9 @@ export default function GraficosScreen() {
   const [chartScrollX, setChartScrollX] = useState(0);
   const [chartViewportWidth, setChartViewportWidth] = useState(0);
   const [chartContentWidth, setChartContentWidth] = useState(0);
+  const categoryAnimationPlayed = useRef(false);
+  const stableCategorySignature = useRef('');
+  const stableCategoryBreakdown = useRef(categoryBreakdown);
 
   const freeToSpendRatio = currentMonthIncome > 0 ? freeToSpend / currentMonthIncome : 0;
   const freeToSpendColor =
@@ -56,6 +59,17 @@ export default function GraficosScreen() {
     { label: '1A', value: '365d' },
   ];
 
+  const categorySignature = categoryBreakdown
+    .map((item) => `${item.name}:${item.value}:${item.color}`)
+    .join('|');
+
+  if (categorySignature !== stableCategorySignature.current) {
+    stableCategorySignature.current = categorySignature;
+    stableCategoryBreakdown.current = categoryBreakdown;
+  }
+
+  const displayedCategoryBreakdown = stableCategoryBreakdown.current;
+
   const spentRatio = currentMonthIncome > 0 ? totalSpent / currentMonthIncome : 0;
   const spentPercent = Math.round(spentRatio * 100);
   const progressWidth = `${Math.min(spentRatio, 1) * 100}%`;
@@ -65,7 +79,7 @@ export default function GraficosScreen() {
   const showLeftIndicator = canScrollChart && chartScrollX > 8;
   const showRightIndicator =
     canScrollChart && chartScrollX < chartContentWidth - chartViewportWidth - 8;
-  const topCategory = categoryBreakdown[0];
+  const topCategory = displayedCategoryBreakdown[0];
   const topPeriod = [...monthlyBars].sort((a, b) => b.total - a.total)[0];
   const periodRangeLabel =
     monthlyBars.length > 0
@@ -82,8 +96,8 @@ export default function GraficosScreen() {
   ];
 
   const maxCategoryValue =
-    categoryBreakdown.length > 0
-      ? Math.max(...categoryBreakdown.map((item) => item.value), 1)
+    displayedCategoryBreakdown.length > 0
+      ? Math.max(...displayedCategoryBreakdown.map((item) => item.value), 1)
       : 1;
 
   const maxMonthlyValue =
@@ -97,8 +111,8 @@ export default function GraficosScreen() {
   );
 
   const animatedCategoryValues = useMemo(
-    () => categoryBreakdown.map(() => new Animated.Value(0)),
-    [categoryBreakdown]
+    () => displayedCategoryBreakdown.map(() => new Animated.Value(0)),
+    [displayedCategoryBreakdown]
   );
 
   useEffect(() => {
@@ -120,22 +134,43 @@ export default function GraficosScreen() {
   }, [animatedValues, monthlyBars, maxMonthlyValue]);
 
   useEffect(() => {
+    if (displayedCategoryBreakdown.length === 0) {
+      return;
+    }
+
     const animations = animatedCategoryValues.map((anim, index) => {
-      const value = categoryBreakdown[index]?.value ?? 0;
+      const value = displayedCategoryBreakdown[index]?.value ?? 0;
+      const targetValue =
+        value > 0 && maxCategoryValue > 0
+          ? (value / maxCategoryValue) * 100
+          : 0;
+
+      if (categoryAnimationPlayed.current) {
+        anim.setValue(targetValue);
+      }
 
       return Animated.timing(anim, {
-        toValue:
-          value > 0 && maxCategoryValue > 0
-            ? (value / maxCategoryValue) * 100
-            : 0,
+        toValue: targetValue,
         duration: 260,
         easing: Easing.out(Easing.ease),
         useNativeDriver: false,
       });
     });
 
-    Animated.stagger(20, animations).start();
-  }, [animatedCategoryValues, categoryBreakdown, maxCategoryValue]);
+    if (categoryAnimationPlayed.current) {
+      return;
+    }
+
+    categoryAnimationPlayed.current = true;
+    const animation = Animated.sequence([
+      Animated.delay(700),
+      Animated.stagger(90, animations),
+    ]);
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [animatedCategoryValues, displayedCategoryBreakdown, maxCategoryValue]);
 
   const handleChartScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     setChartScrollX(event.nativeEvent.contentOffset.x);
@@ -203,14 +238,14 @@ export default function GraficosScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Distribuicao dos gastos de {activeMonthLabel}</Text>
 
-        {categoryBreakdown.length === 0 ? (
+        {displayedCategoryBreakdown.length === 0 ? (
           <Text style={styles.emptyText}>Nenhum gasto registrado neste mes ainda.</Text>
         ) : (
           <>
             <Text style={styles.totalValue}>{formatCurrency(totalSpent)}</Text>
 
             <View style={styles.categoryList}>
-              {categoryBreakdown.map((item, index) => {
+              {displayedCategoryBreakdown.map((item, index) => {
                 const anim = animatedCategoryValues[index];
 
                 return (

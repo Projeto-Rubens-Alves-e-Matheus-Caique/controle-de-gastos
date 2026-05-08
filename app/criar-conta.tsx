@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 import { useAuth } from '@/contexts/auth-context';
 import { register } from '@/services/authService';
@@ -48,75 +48,89 @@ export default function CreateAccountScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.brand}>
-        <Image source={require('@/assets/images/app-logo.png')} style={styles.logo} contentFit="contain" />
-        <Text style={styles.appName}>BudGet</Text>
-      </View>
-
-      <Text style={styles.title}>Cadastrar usuario</Text>
-
-      <View style={styles.formArea}>
-        <View style={styles.goldBand} />
-        <View style={styles.form}>
-          <Text style={styles.label}>Nome</Text>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Seu nome completo"
-            placeholderTextColor="#6E7B75"
-          />
-
-          <Text style={styles.label}>E-mail</Text>
-          <TextInput
-            placeholder="Digite seu email"
-            placeholderTextColor="#6E7B75"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            style={styles.input}
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          <Text style={styles.label}>Senha</Text>
-          <TextInput
-            secureTextEntry
-            style={styles.input}
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Crie uma senha"
-            placeholderTextColor="#6E7B75"
-          />
-
-          <TouchableOpacity style={styles.button} onPress={handleRegister} activeOpacity={0.82}>
-            <Text style={styles.buttonText}>{loading ? 'Criando...' : 'Criar conta'}</Text>
-          </TouchableOpacity>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0}
+      style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.brand}>
+          <Image source={require('@/assets/images/app-logo.png')} style={styles.logo} contentFit="contain" />
+          <Text style={styles.appName}>BudGet</Text>
         </View>
-      </View>
 
-      <Link href="/login" style={styles.link}>
-        Login
-      </Link>
-    </View>
+        <Text style={styles.title}>Cadastrar usuario</Text>
+
+        <View style={styles.formArea}>
+          <View style={styles.goldBand} />
+          <View style={styles.form}>
+            <Text style={styles.label}>Nome</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Seu nome completo"
+              placeholderTextColor="#6E7B75"
+            />
+
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              placeholder="Digite seu email"
+              placeholderTextColor="#6E7B75"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+            />
+
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Crie uma senha"
+              placeholderTextColor="#6E7B75"
+            />
+
+            <TouchableOpacity style={styles.button} onPress={handleRegister} activeOpacity={0.82}>
+              <Text style={styles.buttonText}>{loading ? 'Criando...' : 'Criar conta'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <Link href="/login" style={styles.link}>
+          Login
+        </Link>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
+    backgroundColor: '#0B2E23',
+  },
+  container: {
+    flexGrow: 1,
     alignItems: 'center',
     backgroundColor: '#0B2E23',
-    paddingHorizontal: 10,
-    paddingTop: 56,
+    justifyContent: 'center',
+    paddingBottom: 36,
+    paddingHorizontal: 0,
+    paddingTop: 42,
   },
   brand: {
     alignItems: 'center',
-    marginBottom: 76,
+    marginBottom: 54,
   },
   logo: {
-    width: 82,
-    height: 82,
+    width: 78,
+    height: 78,
     marginBottom: 8,
   },
   appName: {
@@ -132,24 +146,24 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   formArea: {
-    width: '108%',
-    maxWidth: 430,
-    alignItems: 'center',
+    width: '100%',
+    maxWidth: 420,
+    alignItems: 'flex-end',
     position: 'relative',
-    marginRight: -30,
   },
   goldBand: {
     position: 'absolute',
     top: -10,
-    left: 18,
-    right: -26,
+    left: 50,
+    right: -30,
     height: 22,
     backgroundColor: '#C8A348',
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
   },
   form: {
-    width: '100%',
+    alignSelf: 'flex-end',
+    width: '92%',
     backgroundColor: '#F5F5F3',
     borderColor: '#E0E0DE',
     borderTopLeftRadius: 14,
@@ -166,7 +180,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   input: {
-    height: 36,
+    height: 40,
     backgroundColor: '#FFFFFF',
     borderColor: '#D4D4D4',
     borderRadius: 5,
