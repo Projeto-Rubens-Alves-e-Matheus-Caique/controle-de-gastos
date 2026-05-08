@@ -222,7 +222,7 @@ export default function GraficosScreen() {
         )}
       </View>
 
-      <View style={styles.card}>
+      <View style={[styles.card, styles.salaryUsageCard, { borderColor: progressColor }]}>
         <View style={styles.cardHeaderLine}>
           <Text style={styles.cardTitle}>Uso do salario</Text>
           <Text style={[styles.percentBadge, { color: progressColor }]}>{spentPercent}%</Text>
@@ -396,6 +396,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   highlightCard: { borderColor: '#C8AA56' },
+  salaryUsageCard: { borderWidth: 2 },
   cardHeaderLine: {
     alignItems: 'center',
     flexDirection: 'row',
